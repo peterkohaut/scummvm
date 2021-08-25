@@ -31,6 +31,7 @@
 #include "tinsel/tinsel.h"
 #include "tinsel/token.h"
 #include "tinsel/sysvar.h"
+#include "tinsel/noir/spriter.h"
 
 #include "tinsel/background.h"
 
@@ -2483,13 +2484,14 @@ void UpdateGroundPlane() {
 	POLYGON *pp = Polys[i];
 	Poly ptp(_vm->_handle->LockMem(pHandle), pp->pIndex);
 
-	// Vertex2c v[4];
+	int x[4];
+	int y[4];
 
-	// float scale = SysVar(SV_SPRITER_SCALE);
-	// TransformXYZ(ptp.vx[0] * scale, -ptp.vy[0] * scale, -ptp.vz[0] * scale, v[0]);
-	// TransformXYZ(ptp.vx[1] * scale, -ptp.vy[1] * scale, -ptp.vz[1] * scale, v[1]);
-	// TransformXYZ(ptp.vx[2] * scale, -ptp.vy[2] * scale, -ptp.vz[2] * scale, v[2]);
-	// TransformXYZ(ptp.vx[3] * scale, -ptp.vy[3] * scale, -ptp.vz[3] * scale, v[3]);
+	float scale = SysVar(SV_SPRITER_SCALE);
+	_vm->_spriter->TransformSceneXYZ(ptp.vx[0] * scale, -ptp.vy[0] * scale, -ptp.vz[0] * scale, x[0], y[0]);
+	_vm->_spriter->TransformSceneXYZ(ptp.vx[1] * scale, -ptp.vy[1] * scale, -ptp.vz[1] * scale, x[1], y[1]);
+	_vm->_spriter->TransformSceneXYZ(ptp.vx[2] * scale, -ptp.vy[2] * scale, -ptp.vz[2] * scale, x[2], y[2]);
+	_vm->_spriter->TransformSceneXYZ(ptp.vx[3] * scale, -ptp.vy[3] * scale, -ptp.vz[3] * scale, x[3], y[3]);
 	//...
 }
 

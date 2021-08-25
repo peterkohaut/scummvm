@@ -46,6 +46,7 @@
 #include "tinsel/sound.h"	// stopAllSamples()
 #include "tinsel/sysvar.h"
 #include "tinsel/token.h"
+#include "tinsel/noir/spriter.h"
 
 #include "common/memstream.h"
 #include "common/textconsole.h"
@@ -542,8 +543,16 @@ void SetView(int sceneId, int scale) {
 	int i = 0;
 	CAMERA_STRUC *pCamera = (CAMERA_STRUC *)_vm->_handle->LockMem(g_tempStruc.hCamera);
 	for (i = 0; i < g_tempStruc.numCameras; ++i, ++pCamera) {
-		if (sceneId == (int)FROM_32(pCamera->sceneId)) {
-			// set camera
+		if (sceneId == FROM_32(pCamera->sceneId)) {
+			_vm->_spriter->SetCamera(
+				pCamera->rotX,
+				pCamera->rotY,
+				pCamera->rotZ,
+				pCamera->posX * SysVar(SV_SPRITER_SCALE),
+				-pCamera->posY * SysVar(SV_SPRITER_SCALE),
+				-pCamera->posZ * SysVar(SV_SPRITER_SCALE),
+				pCamera->aperture
+			);
 			SetSysVar(SV_SPRITER_SCENE_ID, sceneId);
 			break;
 		}

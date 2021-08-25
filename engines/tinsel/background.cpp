@@ -29,6 +29,7 @@
 #include "tinsel/object.h"
 #include "tinsel/pid.h"	// process identifiers
 #include "tinsel/tinsel.h"
+#include "tinsel/noir/spriter.h"
 
 namespace Tinsel {
 
@@ -213,6 +214,11 @@ void Background::DrawBackgnd() {
 		pPlay->bMoved = false;
 	}
 
+#define playground_3d 1 // code just for debuging model rendering, to be removed
+#if playground_3d
+	AddClipRect(Common::Rect(640,432));
+#endif
+
 	// merge the clipping rectangles
 	MergeClipRect();
 
@@ -233,7 +239,7 @@ void Background::DrawBackgnd() {
 
 			if (IntersectRectangle(rcPlayClip, pPlay->rcClip, *r))
 				// redraw all objects within this clipping rect
-				UpdateClipRect(&pPlay->pDispList, &ptWin,	&rcPlayClip);
+				UpdateClipRect(&pPlay->pDispList, &ptWin, &rcPlayClip);
 		}
 	}
 
@@ -241,6 +247,13 @@ void Background::DrawBackgnd() {
 		// transfer any new palettes to the video DAC
 		PalettesToVideoDAC();
 	}
+
+#if playground_3d
+	// reset zbuffer?
+
+	_vm->_spriter->RenderModel(_vm->_spriter->_modelMain);
+#endif
+#undef playground_3d
 
 	// update the screen within the clipping rectangles
 	for (RectList::const_iterator r = clipRects.begin(); r != clipRects.end(); ++r) {

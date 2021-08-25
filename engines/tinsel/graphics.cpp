@@ -29,6 +29,10 @@
 
 #include "common/textconsole.h"
 
+#if defined(USE_TINYGL)
+#include "graphics/tinygl/gl.h"
+#endif
+
 namespace Tinsel {
 
 //----------------- LOCAL DEFINES --------------------
