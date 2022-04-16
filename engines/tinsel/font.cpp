@@ -49,18 +49,18 @@ void Font::FettleFontPal(SCNHANDLE fontPal) {
 	assert(_hTalkFont); // Talk font not declared
 
 	pImg = (IMAGE *)_vm->_handle->LockMem(_vm->_handle->GetFontImageHandle(_hTagFont)); // get image for char 0
-	if (!TinselV2)
+	if (!TinselAboveV1)
 		pImg->hImgPal = TO_32(fontPal);
 	else
 		pImg->hImgPal = 0;
 
 	pImg = (IMAGE *)_vm->_handle->LockMem(_vm->_handle->GetFontImageHandle(_hTalkFont)); // get image for char 0
-	if (!TinselV2)
+	if (!TinselAboveV1)
 		pImg->hImgPal = TO_32(fontPal);
 	else
 		pImg->hImgPal = 0;
 
-	if (TinselV2 && SysVar(SV_TAGCOLOR)) {
+	if (TinselAboveV1 && SysVar(SV_TAGCOLOR)) {
 		const COLORREF c = _vm->_actor->GetActorRGB(-1);
 		SetTagColorRef(c);
 		UpdateDACqueue(SysVar(SV_TAGCOLOR), c);

@@ -225,7 +225,7 @@ void HideMover(PMOVER pMover, int sf) {
 
 	pMover->bHidden = true;
 
-	if (!TinselV2) {
+	if (!TinselAboveV1) {
 		// sf is only passed in Tinsel v1
 		pMover->SlowFactor = sf;
 	} else {
@@ -257,7 +257,7 @@ bool MoverHidden(PMOVER pMover) {
 bool MoverIs(PMOVER pMover) {
 	if (TinselV3 && pMover->type == MOVER_3D) {
 		return pMover->bIsValid;
-	} else if (TinselV3 || TinselV2) {
+	} else if (TinselV3 || TinselAboveV1) {
 		return pMover->actorObj ? true : false;
 	} else {
 		return getMActorState(pMover);
@@ -275,7 +275,7 @@ bool MoverIsSWalking(PMOVER pMover) {
  * MoverMoving()
  */
 bool MoverMoving(PMOVER pMover) {
-	if (!TinselV2)
+	if (!TinselAboveV1)
 		return pMover->bMoving;
 
 	if (pMover->UtargetX == -1 && pMover->UtargetY == -1)
@@ -303,7 +303,7 @@ int GetMoverId(PMOVER pMover) {
  */
 void SetMoverZ(PMOVER pMover, int y, uint32 zFactor) {
 	if (!pMover->bHidden) {
-		if (!TinselV2)
+		if (!TinselAboveV1)
 			_vm->_actor->AsetZPos(pMover->actorObj, y, zFactor);
 		else if (MoverIsSWalking(pMover) && pMover->zOverride != -1) {
 			// Special for SWalk()
@@ -325,7 +325,7 @@ void SetMoverZoverride(PMOVER pMover, uint32 zFactor) {
 void UnHideMover(PMOVER pMover) {
 	assert(pMover); // unHiding null moving actor
 
-	if (!TinselV2 || pMover->bHidden) {
+	if (!TinselAboveV1 || pMover->bHidden) {
 		pMover->bHidden = false;
 
 		// Make visible on the screen
@@ -574,7 +574,7 @@ void AlterMover(PMOVER pMover, SCNHANDLE film, AR_FUNCTION fn) {
 		assert(pfilm != NULL);
 
 		InitStepAnimScript(&pMover->actorAnim, pMover->actorObj, FROM_32(pfilm->reels[0].script), ONE_SECOND / FROM_32(pfilm->frate));
-		if (!TinselV2)
+		if (!TinselAboveV1)
 			pMover->stepCount = 0;
 
 		// If no path, just use first path in the scene
@@ -948,7 +948,7 @@ void T3MoverProcess(CORO_PARAM, const void *param) {
  * Creates a handling process for a moving actor
  */
 void MoverProcessCreate(int X, int Y, int id, PMOVER pMover) {
-	if (TinselV2 || TinselV3) {
+	if (TinselAboveV1 || TinselV3) {
 		MAINIT iStruct;
 		iStruct.X = X;
 		iStruct.Y = Y;
@@ -979,8 +979,8 @@ PMOVER InMoverBlock(PMOVER pMover, int x, int y) {
 
 	for (int i = 0; i < MAX_MOVERS; i++) {
 		if (pMover == &g_Movers[i] ||
-				(TinselV2 && (g_Movers[i].actorObj == NULL)) ||
-				(!TinselV2 && !g_Movers[i].bActive))
+				(TinselAboveV1 && (g_Movers[i].actorObj == NULL)) ||
+				(!TinselAboveV1 && !g_Movers[i].bActive))
 			continue;
 
 		// At around the same height?
@@ -1011,13 +1011,13 @@ PMOVER InMoverBlock(PMOVER pMover, int x, int y) {
  */
 void SaveMovers(SAVED_MOVER *sMoverInfo) {
 	for (int i = 0; i < MAX_MOVERS; i++) {
-		sMoverInfo[i].bActive = !TinselV2 ? g_Movers[i].bActive : g_Movers[i].actorObj != NULL;
+		sMoverInfo[i].bActive = !TinselAboveV1 ? g_Movers[i].bActive : g_Movers[i].actorObj != NULL;
 		sMoverInfo[i].actorID	= g_Movers[i].actorID;
 		sMoverInfo[i].objX	= g_Movers[i].objX;
 		sMoverInfo[i].objY	= g_Movers[i].objY;
 		sMoverInfo[i].hLastfilm	= g_Movers[i].hLastFilm;
 
-		if (TinselV2) {
+		if (TinselAboveV1) {
 			sMoverInfo[i].bHidden = g_Movers[i].bHidden;
 			sMoverInfo[i].brightness = g_Movers[i].brightness;
 			sMoverInfo[i].startColor = g_Movers[i].startColor;
@@ -1032,7 +1032,7 @@ void SaveMovers(SAVED_MOVER *sMoverInfo) {
 
 void RestoreAuxScales(SAVED_MOVER *sMoverInfo) {
 	for (int i = 0; i < MAX_MOVERS; i++) {
-		if (TinselV2)
+		if (TinselAboveV1)
 			g_Movers[i].actorID = sMoverInfo[i].actorID;
 
 		memcpy(g_Movers[i].walkReels, sMoverInfo[i].walkReels, TOTAL_SCALES * 4 * sizeof(SCNHANDLE));

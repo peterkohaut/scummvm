@@ -466,7 +466,7 @@ void Cursor::InitCurObj() {
 	const MULTI_INIT *pmi;
 	IMAGE *pim;
 
-	if (TinselV2 || TinselV3) {
+	if (TinselAboveV1 || TinselV3) {
 		pFilm = (const FILM *)_vm->_handle->LockMem(_cursorFilm);
 		pfr = (const FREEL *)&pFilm->reels[0];
 		pmi = (MULTI_INIT *)_vm->_handle->LockMem(FROM_32(pfr->mobj));
@@ -489,7 +489,7 @@ void Cursor::InitCurObj() {
 	InitStepAnimScript(&_mainCursorAnim, _mainCursor, FROM_32(pfr->script), ONE_SECOND / FROM_32(pFilm->frate));
 }
 
-/**
+/**return
  * Initialize the cursor position.
  */
 void Cursor::InitCurPos() {
@@ -523,7 +523,7 @@ void Cursor::DwInitCursor(SCNHANDLE bfilm) {
  * DropCursor is called when a scene is closing down.
  */
 void Cursor::DropCursor() {
-	if (TinselV2) {
+	if (TinselAboveV1) {
 		if (_auxCursor)
 			MultiDeleteObject(_vm->_bg->GetPlayfieldList(FIELD_STATUS), _auxCursor);
 		if (_mainCursor)

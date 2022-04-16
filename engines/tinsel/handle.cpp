@@ -78,7 +78,7 @@ Handle::~Handle() {
  * permanent graphics etc.
  */
 void Handle::SetupHandleTable() {
-	bool t2Flag = TinselV2;
+	bool t2Flag = TinselAboveV1;
 	int RECORD_SIZE = t2Flag ? 24 : 20;
 
 	int len;
@@ -409,7 +409,7 @@ byte *Handle::LockMem(SCNHANDLE offset) {
 			// Data was discarded, we have to reload
 			MemoryReAlloc(pH->_node, pH->filesize & FSIZE_MASK);
 
-			if (TinselV2) {
+			if (TinselAboveV1) {
 				SetCD(pH->flags2 & fAllCds);
 				CdCD(Common::nullContext);
 			}
@@ -528,7 +528,7 @@ int Handle::CdNumber(SCNHANDLE offset) {
 
 	MEMHANDLE *pH = _handleTable + handle;
 
-	if (!TinselV2)
+	if (!TinselAboveV1)
 		return 1;
 
 	return GetCD(pH->flags2 & fAllCds);

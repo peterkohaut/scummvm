@@ -118,7 +118,7 @@ Actor::Actor() : _actorInfo(nullptr), _defaultColor(0), _actorsOn(false), ti(0),
 Actor::~Actor() {
 	free(_actorInfo);
 	_actorInfo = nullptr;
-	if (TinselV2) {
+	if (TinselAboveV1) {
 		free(_zFactors);
 		_zFactors = nullptr;
 	}
@@ -143,7 +143,7 @@ void Actor::RegisterActors(int num) {
 		//   as this makes the save/load code simpler
 		// size of ACTORINFO is 148, so this allocates 512 * 148 = 75776 bytes, about 74KB
 		_actorInfo = (ACTORINFO *)calloc(MAX_SAVED_ALIVES, sizeof(ACTORINFO));
-		if (TinselV2)
+		if (TinselAboveV1)
 			_zFactors = (uint8 *)malloc(MAX_SAVED_ALIVES);
 
 		// make sure memory allocated
@@ -155,7 +155,7 @@ void Actor::RegisterActors(int num) {
 		assert(num == _numActors);
 
 		memset(_actorInfo, 0, MAX_SAVED_ALIVES * sizeof(ACTORINFO));
-		if (TinselV2)
+		if (TinselAboveV1)
 			memset(_zFactors, 0, MAX_SAVED_ALIVES);
 	}
 
@@ -248,7 +248,7 @@ void Actor::StartActor(const T1_ACTOR_STRUC *as, bool bRunScript) {
 void Actor::StartTaggedActors(SCNHANDLE ah, int numActors, bool bRunScript) {
 	int	i;
 
-	if (TinselV2) {
+	if (TinselAboveV1) {
 		// Clear it all out for a fresh start
 		memset(_taggedActors, 0, sizeof(_taggedActors));
 		_numTaggedActors = numActors;
@@ -260,7 +260,7 @@ void Actor::StartTaggedActors(SCNHANDLE ah, int numActors, bool bRunScript) {
 		}
 	}
 
-	if (!TinselV2) {
+	if (!TinselAboveV1) {
 		// Tinsel 1 load variation
 		const T1_ACTOR_STRUC *as = (const T1_ACTOR_STRUC *)_vm->_handle->LockMem(ah);
 		for (i = 0; i < numActors; i++, as++) {
@@ -295,7 +295,7 @@ void Actor::StartTaggedActors(SCNHANDLE ah, int numActors, bool bRunScript) {
 void Actor::DropActors() {
 
 	for (int i = 0; i < _numActors; i++) {
-		if (TinselV2) {
+		if (TinselAboveV1) {
 			// Save text color
 			COLORREF tColor = _actorInfo[i].textColor;
 
@@ -540,7 +540,7 @@ int Actor::GetActorSteps(int ano) {
 void Actor::StoreActorZpos(int ano, int z, int column) {
 	assert(ano > 0 && ano <= _numActors); // illegal actor number
 
-	if (!TinselV2) {
+	if (!TinselAboveV1) {
 		// Prior to Tinsel 2, only a single z value was stored
 		_actorInfo[ano - 1].z = z;
 	} else {
@@ -638,7 +638,7 @@ void Actor::GetActorMidTop(int ano, int *x, int *y) {
 			*x = (GetActorLeft(ano) + GetActorRight(ano)) / 2;
 			*y = GetActorTop(ano);
 		}
-	} else if (TinselV2) {
+	} else if (TinselAboveV1) {
 		*x = (GetActorLeft(ano) + GetActorRight(ano)) / 2;
 		*y = GetActorTop(ano);
 	} else if (_actorInfo[ano - 1].presObj) {
@@ -657,7 +657,7 @@ void Actor::GetActorMidTop(int ano, int *x, int *y) {
 int Actor::GetActorLeft(int ano) {
 	assert(ano > 0 && ano <= _numActors); // illegal actor number
 
-	if (!TinselV2) {
+	if (!TinselAboveV1) {
 		// Tinsel 1 version
 		if (!_actorInfo[ano - 1].presObj)
 			return 0;
@@ -699,7 +699,7 @@ int Actor::GetActorLeft(int ano) {
 int Actor::GetActorRight(int ano) {
 	assert(ano > 0 && ano <= _numActors); // illegal actor number
 
-	if (!TinselV2) {
+	if (!TinselAboveV1) {
 		// Tinsel 1 version
 		if (!_actorInfo[ano - 1].presObj)
 			return 0;
@@ -740,7 +740,7 @@ int Actor::GetActorRight(int ano) {
 int Actor::GetActorTop(int ano) {
 	assert(ano > 0 && ano <= _numActors); // illegal actor number
 
-	if (!TinselV2) {
+	if (!TinselAboveV1) {
 		// Tinsel 1 version
 		if (!_actorInfo[ano - 1].presObj)
 			return 0;
@@ -781,7 +781,7 @@ int Actor::GetActorTop(int ano) {
 int Actor::GetActorBottom(int ano) {
 	assert(ano > 0 && ano <= _numActors); // illegal actor number
 
-	if (!TinselV2) {
+	if (!TinselAboveV1) {
 		// Tinsel 1 version
 		if (!_actorInfo[ano - 1].presObj)
 			return 0;
@@ -1092,21 +1092,21 @@ int Actor::SaveActors(PSAVED_ACTOR sActorInfo) {
 	int	i, j, k;
 
 	for (i = 0, j = 0; i < _numActors; i++) {
-		for (k = 0; k < (TinselV2 ? MAX_REELS : 1); ++k) {
-			bool presFlag = !TinselV2 ? _actorInfo[i].presObj != NULL :
+		for (k = 0; k < (TinselAboveV1 ? MAX_REELS : 1); ++k) {
+			bool presFlag = !TinselAboveV1 ? _actorInfo[i].presObj != NULL :
 				(_actorInfo[i].presObjs[k] != NULL) && !_vm->_handle->IsCdPlayHandle(_actorInfo[i].presFilm);
 			if (presFlag) {
 
 				assert(j < MAX_SAVED_ACTORS); // Saving too many actors
 
-				if (!TinselV2) {
+				if (!TinselAboveV1) {
 					sActorInfo[j].bAlive	= _actorInfo[i].bAlive;
 					sActorInfo[j].zFactor	= (short)_actorInfo[i].z;
 					sActorInfo[j].presRnum	= (short)_actorInfo[i].presRnum;
 				}
 
 				sActorInfo[j].actorID	= (short)(i+1);
-				if (TinselV2)
+				if (TinselAboveV1)
 					sActorInfo[j].bHidden	= _actorInfo[i].bHidden;
 	//			sActorInfo[j].x		= (short)actorInfo[i].x;
 	//			sActorInfo[j].y		= (short)actorInfo[i].y;
@@ -1503,7 +1503,7 @@ static void ActorTinselProcess(CORO_PARAM, const void *param) {
 
 	CORO_BEGIN_CODE(_ctx);
 
-	if (TinselV2) {
+	if (TinselAboveV1) {
 		// Take control for CONVERSE events
 		if (atp->event == CONVERSE) {
 			_ctx->bTookControl = GetControl();
@@ -1673,7 +1673,7 @@ void HideActor(CORO_PARAM, int ano) {
 
 	CORO_BEGIN_CODE(_ctx);
 
-	if (TinselV2) {
+	if (TinselAboveV1) {
 		_vm->_actor->ToggleActor(ano, false);
 
 		// Send event to tagged actors
@@ -1692,7 +1692,7 @@ void HideActor(CORO_PARAM, int ano) {
 
 	if (pMover)
 		HideMover(pMover, 0);
-	else if (!TinselV2)
+	else if (!TinselAboveV1)
 		_vm->_actor->ToggleActor(ano, false);
 
 	CORO_END_CODE;
