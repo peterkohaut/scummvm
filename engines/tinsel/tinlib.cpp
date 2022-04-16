@@ -3492,7 +3492,7 @@ static void TalkOrSay(CORO_PARAM, SPEECH_TYPE speechType, SCNHANDLE hText, int x
 			CORO_SLEEP(1);
 
 			// Handle timeout decrementing and Escape presses
-			if (TinselAboveV1 || TinselV3) {
+			if (TinselAboveV1) {
 				if ((_ctx->escEvents && _ctx->escEvents != GetEscEvents()) ||
 					(!bSustain && LeftEventChange(_ctx->myLeftEvent)) ||
 					(--_ctx->timeout <= 0)) {
@@ -4627,7 +4627,7 @@ NoirMapping translateNoirLibCode(int libCode, int32 *pp) {
 		pp -= mapping.numArgs - 1;
 		debug(7, "%s(%d)", mapping.name, pp[0]);
 		break;
-	case 84:
+	case 84: // v3 variant implemented
 		mapping = NoirMapping{"HOLD", HOLD, 1};
 		pp -= mapping.numArgs - 1;
 		debug(7, "%s(%d)", mapping.name, pp[0]);
@@ -5799,7 +5799,7 @@ int CallLibraryRoutine(CORO_PARAM, int operand, int32 *pp, const INT_CONTEXT *pi
 
 	case HIDEACTOR:
 		// Common to DW1 / DW2 / Noir
-		if (!TinselAboveV1 && !TinselV3)
+		if (!TinselAboveV1)
 			HideActorFn(coroParam, pp[0]);
 		else if (*pResumeState == RES_1 && pic->resumeCode == RES_WAITING) {
 			*pResumeState = RES_NOT;
@@ -5898,7 +5898,7 @@ int CallLibraryRoutine(CORO_PARAM, int operand, int32 *pp, const INT_CONTEXT *pi
 
 	case KILLACTOR:
 		// DW1 only
-		if (TinselAboveV1 || TinselV3)
+		if (TinselAboveV1)
 			error("KillActor() was not expected to be required");
 
 		KillActor(pp[0]);
@@ -6145,7 +6145,7 @@ int CallLibraryRoutine(CORO_PARAM, int operand, int32 *pp, const INT_CONTEXT *pi
 
 	case PRINTTAG:
 		// Common to DW1 / DW2 / Noir
-		PrintTag(pic->hPoly, pp[0], (TinselAboveV1 || TinselV3) ? pic->idActor : 0, false);
+		PrintTag(pic->hPoly, pp[0], TinselAboveV1 ? pic->idActor : 0, false);
 		return -1;
 
 	case QUITGAME:
