@@ -4351,7 +4351,7 @@ NoirMapping translateNoirLibCode(int libCode, int32 *pp) {
 		debug(7, "%s(0x%08X)", mapping.name, pp[0]);
 		break;
 	case 20: // 3 params, assigns values to three globals
-		error("Unmapped libCode %d", libCode);
+		error("Unsupported libCode %d", libCode);
 	case 21:
 		mapping = NoirMapping{"CALLACTOR", CALLACTOR, 2};
 		pp -= mapping.numArgs - 1;
@@ -4453,6 +4453,7 @@ NoirMapping translateNoirLibCode(int libCode, int32 *pp) {
 		debug(7, "%s(0x%08X, 0x%08X, 0x%08X, 0x%08X, 0x%08X, 0x%08X, 0x%08X, 0x%08X)", mapping.name, pp[0], pp[1], pp[2], pp[3], pp[4], pp[5], pp[6], pp[7]);
 		break;
 	case 44: // Changed in Noir
+		warning("TODO: Implement DECINV2 v3");
 		mapping = NoirMapping{"DECINV2", DECINV2, 8};
 		pp -= mapping.numArgs - 1;
 		debug(7, "%s(0x%08X, 0x%08X, 0x%08X, 0x%08X, 0x%08X, 0x%08X, 0x%08X, 0x%08X)", mapping.name, pp[0], pp[1], pp[2], pp[3], pp[4], pp[5], pp[6], pp[7]);
@@ -4633,7 +4634,11 @@ NoirMapping translateNoirLibCode(int libCode, int32 *pp) {
 		debug(7, "%s(0x%08X, 0x%08X, 0x%08X)", mapping.name, pp[0], pp[1], pp[2]);
 		break;
 	case 86: // 2 parameters
-		error("Unsupported libCode %d notebook_add_hyperlink", libCode);
+		warning("TODO: Implement notebook_add_hyperlink");
+		mapping = NoirMapping{"NODEBOOKADDHYPERLINK", ZZZZZZ, 2};
+		pp -= mapping.numArgs - 1;
+		debug(7, "%s(0x%08X, 0x%08X)", mapping.name, pp[0], pp[1]);
+		break;
 		break;
 	case 87:
 		mapping = NoirMapping{"IDLETIME", IDLETIME, 0};
@@ -4707,7 +4712,10 @@ NoirMapping translateNoirLibCode(int libCode, int32 *pp) {
 	case 105: // 0 parameters
 		error("Unsupported libCode %d INVENTORY4", libCode);
 	case 106: // 0 parameters
-		error("Unsupported libCode %d INVENTORY3", libCode);
+		warning("TODO: Implement INVENTORY3");
+		mapping = NoirMapping{"INVENTORY3", ZZZZZZ, 0};
+		debug(7, "%s()", mapping.name);
+		break;
 	case 107:
 		mapping = NoirMapping{"OTHEROBJECT", OTHEROBJECT, 0};
 		debug(7, "%s()", mapping.name);
@@ -5047,6 +5055,7 @@ NoirMapping translateNoirLibCode(int libCode, int32 *pp) {
 	case 220:
 		error("Unsupported libCode %d TALK with unsupported speech type", libCode);
 	case 181: // talkorsay has been modified vor v3
+		warning("TODO: Implement TalkOrSay v3");
 		mapping = NoirMapping{"TALKAT", TALKAT, 5};
 		pp -= mapping.numArgs - 1;
 		debug(7, "%s(0x%08X, 0x%08X, 0x%08X, 0x%08X, 0x%08X)", mapping.name, pp[0], pp[1], pp[2], pp[3], pp[4]);
@@ -5171,6 +5180,7 @@ NoirMapping translateNoirLibCode(int libCode, int32 *pp) {
 		debug(7, "%s()", mapping.name);
 		break;
 	case 208: // WhichInventory is implemented differently in v3, checking notebookstate
+		warning("TODO: Implement WHICHINVENTORY v3");
 		mapping = NoirMapping{"WHICHINVENTORY", WHICHINVENTORY, 0};
 		debug(7, "%s()", mapping.name);
 		break;
@@ -5179,6 +5189,7 @@ NoirMapping translateNoirLibCode(int libCode, int32 *pp) {
 		debug(7, "%s()", mapping.name);
 		break;
 	case 210: // STUBBED
+		warning("TODO: Implement OP210");
 		mapping = NoirMapping{"OP210", ZZZZZZ, 8};
 		pp -= mapping.numArgs - 1;
 		debug(7, "%s(0x%08X, 0x%08X, 0x%08X, 0x%08X, 0x%08X, 0x%08X, 0x%08X, 0x%08X)", mapping.name, pp[0], pp[1], pp[2], pp[3], pp[4], pp[5], pp[6], pp[7]);
@@ -5186,11 +5197,13 @@ NoirMapping translateNoirLibCode(int libCode, int32 *pp) {
 	case 211: // 4 parameters
 		error("Unsupported libCode %d PLAYSEQUENCE", libCode);
 	case 212: // STUBBED
+		warning("TODO: Implement OP212");
 		mapping = NoirMapping{"OP212", ZZZZZZ, 8};
 		pp -= mapping.numArgs - 1;
 		debug(7, "%s(0x%08X, 0x%08X, 0x%08X, 0x%08X, 0x%08X, 0x%08X, 0x%08X, 0x%08X)", mapping.name, pp[0], pp[1], pp[2], pp[3], pp[4], pp[5], pp[6], pp[7]);
 		break;
 	case 213: // STUBBED
+		warning("TODO: Implement OP213");
 		mapping = NoirMapping{"OP213", ZZZZZZ, 8};
 		pp -= mapping.numArgs - 1;
 		debug(7, "%s(0x%08X, 0x%08X, 0x%08X, 0x%08X, 0x%08X, 0x%08X, 0x%08X, 0x%08X)", mapping.name, pp[0], pp[1], pp[2], pp[3], pp[4], pp[5], pp[6], pp[7]);
@@ -5222,6 +5235,7 @@ NoirMapping translateNoirLibCode(int libCode, int32 *pp) {
 	case 227: // 1 parameter, removes icon
 		error("Unsupported libCode %d", libCode);
 	case 228: // STUBBED, PCM related
+		warning("TODO: Implement OP228, PCM related");
 		mapping = NoirMapping{"OP228", ZZZZZZ, 1};
 		pp -= mapping.numArgs - 1;
 		debug(7, "%s(0x%08X)", mapping.name, pp[0]);
