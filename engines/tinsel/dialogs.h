@@ -87,6 +87,7 @@ enum InvCursorFN { IC_AREA,
 #define CONVENDITEM 0x40
 #define V3ATTR_X200 0x200 // noir specific
 #define V3ATTR_X400 0x400 // noir specific
+#define NOTEBOOK_TITLE 0x800 // noir notebook title
 
 #define sliderRange (_sliderYmax - _sliderYmin)
 #define MAXSLIDES 4
