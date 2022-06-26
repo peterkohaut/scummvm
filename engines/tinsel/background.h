@@ -85,6 +85,8 @@ public:
 	void InitBackground();
 
 	void DrawBackgnd();		// Draws all playfields for the current background
+	void T3DrawBackgnd();		// Draws all playfields for the current background
+	void Tick();
 
 	/**
 	 * Called before scene change.

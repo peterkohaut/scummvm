@@ -67,6 +67,11 @@ void UpdateClipRect(		// Redraws all objects within this clipping rectangle
 	Common::Point *pWin,		// window top left position
 	Common::Rect *pClip);		// pointer to clip rectangle
 
+void UpdateClipRectSingle(		// Redraws single object within this clipping rectangle
+	OBJECT *pObj,				// object list to draw
+	Common::Point *pWin,		// window top left position
+	Common::Rect *pClip);		// pointer to clip rectangle
+
 } // End of namespace Tinsel
 
 #endif	// TINSEL_CLIPRECT_H

@@ -42,6 +42,9 @@ namespace Tinsel {
 
 Spriter::Spriter() {
 	_textureGenerated = false;
+	_sequencesCount = 0;
+	_animId = 0;
+	_animSpeed = 0;
 }
 
 Spriter::~Spriter() {
@@ -72,6 +75,10 @@ void Spriter::MatrixPush() {
 void Spriter::MatrixTranslate(float x, float y, float z) {
 	Math::Vector3d v {x,y,z};
 	_currentMatrix->top().translate(v);
+}
+
+void Spriter::MatrixScale(float s) {
+	_currentMatrix->top() *= s;
 }
 
 void Spriter::MatrixRotateX(float angle) {
@@ -124,22 +131,18 @@ void Spriter::Init(int width, int height) {
 
 
 void Spriter::SetCamera(short rotX, short rotY, short rotZ, int posX, int posY, int posZ, int cameraAp) {
-	_view.cameraPosX = posX * 0.01f;
-	_view.cameraPosY = posY * 0.01f;
-	_view.cameraPosZ = posZ * 0.01f;
-	_view.cameraRotX = rotX;
-	_view.cameraRotY = rotY;
-	_view.cameraRotZ = rotZ;
+	_view.position.set(posX * 0.01f, posY * 0.01f, posZ * 0.01f);
+	_view.rotation.set(rotX, rotY, rotZ);
 
 	SetViewport(cameraAp);
 }
 
 void Spriter::TransformSceneXYZ(int x, int y, int z, int& xOut, int& yOut) {
 	MatrixReset();
-	MatrixRotateX(_view.cameraRotX);
-	MatrixRotateY(_view.cameraRotY);
-	MatrixRotateZ(_view.cameraRotZ);
-	MatrixTranslate(-_view.cameraPosX, -_view.cameraPosY, -_view.cameraPosZ);
+	MatrixRotateX(_view.rotation.x());
+	MatrixRotateY(_view.rotation.y());
+	MatrixRotateZ(_view.rotation.z());
+	MatrixTranslate(-_view.position.x(), -_view.position.y(), -_view.position.z());
 	MatrixTranslate(x / 100.0f, y / 100.0f, z / 100.0f);
 
 	Math::Vector3d v(0,0,0);
@@ -281,7 +284,7 @@ void Spriter::LoadGBL(const Common::String& modelName) {
 #define kBODY 0x59444f42
 #define kRELC 0x434c4552
 
-void Spriter::LoadRBH(const Common::String& modelName, RBH& rbh) {
+void Spriter::LoadRBH(const Common::String& modelName, Hunks& hunks) {
 	Common::String filename = modelName + ".rbh";
 
 	Common::File f;
@@ -298,8 +301,8 @@ void Spriter::LoadRBH(const Common::String& modelName, RBH& rbh) {
 	uint headerSize = f.readUint32LE();
 	uint entriesCount = headerSize / 12;
 
-	rbh.resize(entriesCount);
-	for (RBH::iterator it = rbh.begin(); it != rbh.end(); ++it) {
+	hunks.resize(entriesCount);
+	for (Hunks::iterator it = hunks.begin(); it != hunks.end(); ++it) {
 		f.skip(4); // pointer to data
 		it->size = f.readUint32LE();
 		it->flags = f.readUint16LE();
@@ -312,7 +315,7 @@ void Spriter::LoadRBH(const Common::String& modelName, RBH& rbh) {
 		tag = f.readUint32LE();
 		uint size = f.readUint32LE();
 		if (tag == kBODY) {
-			f.read(rbh[entryIdx].data.data(), size);
+			f.read(hunks[entryIdx].data.data(), size);
 			++entryIdx;
 		} else if (tag == kRELC) {
 			uint srcIdx = f.readUint32LE();
@@ -325,7 +328,7 @@ void Spriter::LoadRBH(const Common::String& modelName, RBH& rbh) {
 			//	 --entries;
 			// }
 			f.skip(size - 8);
-			rbh[srcIdx].mappingIdx.push_back(dstIdx);
+			hunks[srcIdx].mappingIdx.push_back(dstIdx);
 		} else {
 			assert(false);
 		}
@@ -448,71 +451,167 @@ void Spriter::UpdatePalette(SCNHANDLE hPalette) {
 	}
 }
 
-Meshes Spriter::LoadMeshes(RBH rbh, uint table1, uint index1, uint frame) {
-	assert(table1 < rbh.size());
+void Spriter::SetSequence(uint animId, uint delay) {
+	assert(animId < _animMain.size());
+	
+	_sequencesCount = _sequencesCount + 1;
+	_animId = animId;
 
-	Common::MemoryReadStream s1(rbh[table1].data.data(), rbh[table1].data.size());
-	s1.skip(index1);
+	if ((!_modelIdle) && (delay != 0)) {
+		_modelMain.startFrame = -1;
+		_modelMain.time = 0;
+		_animDelay = delay;
+		_animDelayMax = delay;
+		if (!SetEndFrame(_modelMain, _animMain[animId], 0)) {
+			error("Spr_SetSeq: Could not set end frame");
+		}
+	} else {
+		if (!SetStartFrame(_modelMain, _animMain[animId], 0)) {
+			error("Spr_SetSeq: Could not set start frame");
+		}
+		if (!SetEndFrame(_modelMain, _animMain[animId], _animMain[animId].maxFrame != 0)) {
+			error("Spr_SetSeq: Could not set end frame");
+		}
+		// DAT_0049b85c = 0;
+	}
+}
 
-	uint numFrames = s1.readUint16LE();
-	uint numEntries = s1.readUint16LE();
+Common::Rect Spriter::Step(int direction, int x, int y, int z, int speed) {
+	if (!_modelIdle) {
+		_modelIdle = false;
+		_direction = direction;
+	}
+
+	_modelMain.position.set(x * 0.01f, y * 0.01f, z * 0.01f);
+
+	// do gradual direction change - game is using 5 steps 
+	_modelMain.rotation.set(0, direction , 0);
+	
+	
+
+	if ((_animMain[_animId].maxFrame < 2) && (_modelMain.startFrame != -1)) {
+		_modelMain.time = 0;
+		if (!SetStartFrame(_modelMain, _animMain[_animId], _modelMain.endFrame)) {
+			error("Spr_Step: Could not set start frame");
+		}
+	} else {
+		if (_animDelay == 0) {
+			_modelMain.time += speed;
+		} else {
+			_animDelay--;
+			_modelMain.time += (uint)speed / _animDelayMax;
+		}
+
+		while (0xFFFF < _modelMain.time) {
+			_modelMain.time -= 0x10000;
+			if (!SetStartFrame(_modelMain, _animMain[_animId], _modelMain.endFrame)) {
+				error("Spr_Step: Could not set start frame");
+			}
+			
+			_modelMain.endFrame++;
+			if (_animMain[_animId].maxFrame < _modelMain.endFrame) {
+				_sequencesCount++;
+				_modelMain.endFrame = 0;
+			}
+		}
+	}
+	RenderModel(_modelMain);
+
+	// int shadowId = 3;
+	// if (_animId == 2) {
+	// 	shadowId = ((_modelMain.endFrame + 17) % 18) + 1;
+	// }
+	// _modelShadow.renderProgram = _modelShadow.hunks[_meshShadow[shadowId].renderProgramHunk].data.data() + _meshShadow[shadowId].renderProgram;
+	// _modelShadow.tables.meshes = LoadMeshes(_modelShadow.hunks, _meshShadow[shadowId].meshTablesHunk, _meshShadow[shadowId].meshTables, 1);
+	// dx = (float)_modelMain.animTranslate.x() - _modelMain.lightPosition[0].x;
+	// dz = (float)_modelMain.animTranslate.z() - _modelMain.lightPosition[0].z;
+	// dy = (float)_modelMain.animTranslate.y() - _modelMain.lightPosition[0].y;
+	// fVar1 = dz * dz + dx * dx;
+	// if (dy * dy < fVar1) {
+	// 	dy = (float)1.0 / SQRT(fVar1);
+	// 	fVar1 = dx * dy;
+	// 	fVar2 = dy * dz;
+	// } else {
+	// 	fVar1 = 0.0f;
+	// 	fVar2 = 0.0f;
+	// 	if (0.0f != dy) {
+	// 		fVar1 = dx * (1.0f / dy);
+	// 		fVar2 = (1.0f / dy) * dz;
+	// 	}
+	// }
+
+	// RenderModel(_modelShadow);
+
+}
+
+Meshes Spriter::LoadMeshes(const Hunks &hunks, uint hunk, uint offset, int frame) {
+	assert(hunk < hunks.size());
+
+	Common::MemoryReadStream framesStream(hunks[hunk].data.data(), hunks[hunk].data.size());
+	framesStream.skip(offset);
+
+	uint numFrames = framesStream.readUint16LE();
+	uint numEntries = framesStream.readUint16LE();
 
 	assert(frame < numFrames);
 
-	s1.skip(frame * 4);
-	uint index2 = s1.readUint32LE();
+	framesStream.skip(frame * 4);
 
-	uint table2 = rbh[table1].mappingIdx[0];
-	Common::MemoryReadStream s2(rbh[table2].data.data(), rbh[table2].data.size());
-	s2.skip(index2);
+	uint meshListOffset = framesStream.readUint32LE();
+	uint meshListHunk = hunks[hunk].mappingIdx[0];
+	Common::MemoryReadStream meshListStream(hunks[meshListHunk].data.data(), hunks[meshListHunk].data.size());
+	meshListStream.skip(meshListOffset);
 
 	Meshes result;
-	result.vertexCount = s2.readUint32LE();
-	result.normalCount = s2.readUint32LE();
+	result.vertexCount = meshListStream.readUint32LE();
+	result.normalCount = meshListStream.readUint32LE();
 	result.meshes.resize(numEntries);
 
+	// Read all meshes
 	for (auto& mesh : result.meshes) {
-		uint index3 = s2.readUint32LE();
-		uint table3 = rbh[table2].mappingIdx[0];
+		uint meshOffset = meshListStream.readUint32LE();
+		uint meshHunk = hunks[meshListHunk].mappingIdx[0];
 
-		Common::MemoryReadStream s3(rbh[table3].data.data(), rbh[table3].data.size());
-		s3.skip(index3);
+		Common::MemoryReadStream meshStream(hunks[meshHunk].data.data(), hunks[meshHunk].data.size());
+		meshStream.skip(meshOffset);
 
+		// Read vertices
+		uint verticesOffset = meshStream.readUint32LE();
+		uint verticesHunk = hunks[meshHunk].mappingIdx[1];
 
-		uint index4 = s3.readUint32LE();
-		uint table4 = rbh[table3].mappingIdx[1];
+		mesh.vertices.resize(meshStream.readUint32LE());
 
-		mesh.vertices.resize(s3.readUint32LE());
-
-		Common::MemoryReadStream s4(rbh[table4].data.data(), rbh[table4].data.size());
-		s4.skip(index4);
+		Common::MemoryReadStream verticesStream(hunks[verticesHunk].data.data(), hunks[verticesHunk].data.size());
+		verticesStream.skip(verticesOffset);
 
 		for (auto& v : mesh.vertices) {
-			v.readFromStream(&s4);
+			v.readFromStream(&verticesStream);
 		}
 
-		uint index5 = s3.readUint32LE();
-		uint table5 = rbh[table3].mappingIdx[1];
+		// Read normals
+		uint normalsOffset = meshStream.readUint32LE();
+		uint normalsHunk = hunks[meshHunk].mappingIdx[1];
 
-		mesh.normals.resize(s3.readUint32LE());
+		mesh.normals.resize(meshStream.readUint32LE());
 
-		Common::MemoryReadStream s5(rbh[table5].data.data(), rbh[table5].data.size());
-		s5.skip(index5);
+		Common::MemoryReadStream normalsStream(hunks[normalsHunk].data.data(), hunks[normalsHunk].data.size());
+		normalsStream.skip(normalsOffset);
 
 		for (auto& n : mesh.normals) {
-			n.readFromStream(&s5);
+			n.readFromStream(&normalsStream);
 		}
 
-		uint index6 = s3.readUint32LE();
-		uint table6 = rbh[table3].mappingIdx[0];
+		// Read primitives
+		uint primitivesOffset = meshStream.readUint32LE();
+		uint primitivesHunk = hunks[meshHunk].mappingIdx[0];
 
-		Common::MemoryReadStream s6(rbh[table6].data.data(), rbh[table6].data.size());
-		s6.skip(index6);
+		Common::MemoryReadStream primitivesStream(hunks[primitivesHunk].data.data(), hunks[primitivesHunk].data.size());
+		primitivesStream.skip(primitivesOffset);
 
 		while (true) {
-			uint primitiveCount = s6.readUint16LE();
-			uint primitiveType = s6.readUint16LE();
-			uint dataSize = s6.readUint32LE();
+			uint primitiveCount = primitivesStream.readUint16LE();
+			uint primitiveType = primitivesStream.readUint16LE();
+			uint dataSize = primitivesStream.readUint32LE();
 
 			if (primitiveCount == 0) {
 				break;
@@ -526,19 +625,19 @@ Meshes Spriter::LoadMeshes(RBH rbh, uint table1, uint index1, uint frame) {
 
 			for (auto& prim : part.primitives) {
 				for (uint i = 0; i < 8; ++i) {
-					prim.indices[i] = s6.readUint16LE();
+					prim.indices[i] = primitivesStream.readUint16LE();
 				}
 
 				if (part.type == 0 || part.type == 1) {
-					prim.color = s6.readUint32LE();
+					prim.color = primitivesStream.readUint32LE();
 				} else if (part.type == 2 || part.type == 3) {
 					assert(false); //not supported?
 				} else if (part.type == 4 || part.type == 5) {
 					for (uint i = 0; i < part.numVertices; ++i) {
-						prim.uv[i].readFromStream(&s6);
+						prim.uv[i].readFromStream(&primitivesStream);
 					}
-					prim.texture = s6.readUint16LE();
-					s6.skip(2); //padding
+					prim.texture = primitivesStream.readUint16LE();
+					primitivesStream.skip(2); //padding
 				}
 			}
 
@@ -549,99 +648,91 @@ Meshes Spriter::LoadMeshes(RBH rbh, uint table1, uint index1, uint frame) {
 	return result;
 }
 
-VecFTables Spriter::LoadTableVector3f(RBH rbh, uint table, uint offset) {
-	assert(table < rbh.size());
+template<bool convert>
+AnimationData Spriter::LoadAnimationData(const Hunks& hunks, uint hunk, uint offset) {
+	assert(hunk < hunks.size());
 
-	Common::MemoryReadStream s1(rbh[table].data.data(), rbh[table].data.size());
-	s1.skip(offset);
+	Common::MemoryReadStream framesStream(hunks[hunk].data.data(), hunks[hunk].data.size());
+	framesStream.skip(offset);
 
-	uint numFrames = s1.readUint16LE();
-	uint numEntries = s1.readUint16LE();
+	uint numFrames = framesStream.readUint16LE();
+	uint numEntries = framesStream.readUint16LE();
 
-	VecFTables result;
-	result.frame.resize(numFrames);
+	AnimationData result;
+	result.resize(numFrames);
 
-	uint table2 = rbh[table].mappingIdx[0];
+	uint vectorsHunk = hunks[hunk].mappingIdx[0];
+	assert(vectorsHunk < hunks.size());
 
-	for (uint frame = 0; frame < numFrames; frame++) {
-		auto& frameEntries = result.frame[frame];
-		uint index = s1.readUint32LE();
+	for (int frame = 0; frame < numFrames; frame++) {
+		auto& vectors = result[frame];
+		uint vectorsOffset = framesStream.readUint32LE();
 
-		Common::MemoryReadStream s2(rbh[table2].data.data(), rbh[table2].data.size());
-		s2.skip(index);
+		Common::MemoryReadStream vectorsStream(hunks[vectorsHunk].data.data(), hunks[vectorsHunk].data.size());
+		vectorsStream.skip(vectorsOffset);
 
-		frameEntries.resize(numEntries);
+		vectors.resize(numEntries);
 
-		for (auto& v : frameEntries) {
-			v.readFromStream(&s2);
+		for (auto& v : vectors) {
+			if (convert) {
+				uint32 x = vectorsStream.readUint32LE();
+				uint32 y = vectorsStream.readUint32LE();
+				uint32 z = vectorsStream.readUint32LE();
+#define convertFn(v) (((v & 0xfff) / 4095.0f) * 360.0f)
+				v.set(convertFn(x), convertFn(y), convertFn(z));
+#undef convertFn
+			} else {
+				v.readFromStream(&vectorsStream);
+			}
 		}
 	}
 
 	return result;
 }
 
-VecFTables Spriter::LoadTableVector3i(RBH rbh, uint table, uint offset) {
-	assert(table < rbh.size());
+void Spriter::InitModel(Model &model, MeshInfo &meshInfo, Common::Array<AnimationInfo> &animInfos, uint flags) {
+	model.flags = flags;
 
-	Common::MemoryReadStream s1(rbh[table].data.data(), rbh[table].data.size());
-	s1.skip(offset);
+	model.renderProgram       = model.hunks[meshInfo.renderProgramHunk].data.data() + meshInfo.renderProgram;
 
-	uint numFrames = s1.readUint16LE();
-	uint numEntries = s1.readUint16LE();
+	AnimationInfo &animInfo   = animInfos[0];
 
-	VecFTables result;
-	result.frame.resize(numFrames);
-
-	uint table2 = rbh[table].mappingIdx[0];
-
-	for (uint frame = 0; frame < numFrames; frame++) {
-		auto& frameEntries = result.frame[frame];
-		uint index = s1.readUint32LE();
-
-		Common::MemoryReadStream s2(rbh[table2].data.data(), rbh[table2].data.size());
-		s2.skip(index);
-
-		frameEntries.resize(numEntries);
-
-		for (auto& it : frameEntries) {
-			uint32 x = s2.readUint32LE();
-			uint32 y = s2.readUint32LE();
-			uint32 z = s2.readUint32LE();
-
-#define convert(v) (((v & 0xfff) / 4095.0f) * 360.0f)
-			it.set(convert(x), convert(y), convert(z));
-#undef convert
-		}
-	}
-
-	return result;
-}
-
-void Spriter::InitModel(Model &model, MeshInfo &meshInfo, Common::Array<AnimationInfo> &animInfos) {
-	model.renderProgram           = model.rbh[meshInfo.renderProgramHunk].data.data() + meshInfo.renderProgram;
-
-	AnimationInfo &animInfo = animInfos[0];
-
-	model.tables.meshes           = LoadMeshes(model.rbh, meshInfo.meshTablesHunk, meshInfo.meshTables, 0);
-	model.tables.translationTable = LoadTableVector3f(model.rbh, animInfo.translateTablesHunk, animInfo.translateTables).frame[0];
-	model.tables.rotationTable    = LoadTableVector3i(model.rbh, animInfo.rotateTablesHunk, animInfo.rotateTables).frame[0];
-	model.tables.scaleTable       = LoadTableVector3f(model.rbh, animInfo.scaleTablesHunk, animInfo.scaleTables).frame[0];
+	model.tables.meshes       = LoadMeshes(model.hunks, meshInfo.meshTablesHunk, meshInfo.meshTables, 0);
+	model.tables.translations = LoadAnimationData<false>(model.hunks, animInfo.translateTablesHunk, animInfo.translateTables)[0];
+	model.tables.rotations    = LoadAnimationData<true>(model.hunks, animInfo.rotateTablesHunk, animInfo.rotateTables)[0];
+	model.tables.scales       = LoadAnimationData<false>(model.hunks, animInfo.scaleTablesHunk, animInfo.scaleTables)[0];
 
 	_currentMatrix = &_modelMatrix;
 
 	MatrixReset();
-
+	// merge vertices
 	RunRenderProgram(model, true);
+
+	// bool valid = true;
+	// if (model.flags & MODEL_HAS_TRANSLATION_TABLE) {
+	// 	for (const auto &anim : animInfos) {
+	// 		if (anim.translateNum != animInfo.translateNum) {
+	// 			valid = false;
+	// 		}
+	// 	}
+	// 	model.tables.translations.clear();
+	// 	model.tables.translations.resize(animInfo.translateNum);
+	// }
+
+	// for (uint i = 0; i < model.animationCount; ++i) {
+	// 	SetStartFrame(model, animInfos[i], 0);
+	// 	// check if animation data has same number of frames for all transformation types
+	// }
 }
 
 void Spriter::RunRenderProgram(Model &model, bool initial) {
 	uint8* program = model.renderProgram;
 	uint ip = 0;
 
-	Vertices3f vertices;
+	Vectors vertices;
 	vertices.reserve(model.tables.meshes.vertexCount);
 
-	Vertices3f normals;
+	Vectors normals;
 	normals.resize(model.tables.meshes.normalCount);
 
 	Common::Array<uint16> sameVertices;
@@ -688,7 +779,7 @@ void Spriter::RunRenderProgram(Model &model, bool initial) {
 				uint16 entry = READ_LE_UINT16(&program[ip]);
 				ip += 2;
 
-				Math::Vector3d& v = model.tables.translationTable[entry];
+				Math::Vector3d& v = model.tables.translations[entry];
 				MatrixTranslate(v.x(), 0, 0);
 
 				break;
@@ -697,7 +788,7 @@ void Spriter::RunRenderProgram(Model &model, bool initial) {
 				uint16 entry = READ_LE_UINT16(&program[ip]);
 				ip += 2;
 
-				Math::Vector3d& v = model.tables.translationTable[entry];
+				Math::Vector3d& v = model.tables.translations[entry];
 				MatrixTranslate(0, v.y(), 0);
 
 				break;
@@ -706,7 +797,7 @@ void Spriter::RunRenderProgram(Model &model, bool initial) {
 				uint16 entry = READ_LE_UINT16(&program[ip]);
 				ip += 2;
 
-				Math::Vector3d& v = model.tables.translationTable[entry];
+				Math::Vector3d& v = model.tables.translations[entry];
 				MatrixTranslate(0, 0, v.z());
 
 				break;
@@ -715,7 +806,7 @@ void Spriter::RunRenderProgram(Model &model, bool initial) {
 				uint16 entry = READ_LE_UINT16(&program[ip]);
 				ip += 2;
 
-				Math::Vector3d& v = model.tables.translationTable[entry];
+				Math::Vector3d& v = model.tables.translations[entry];
 				MatrixTranslate(v.x(), v.y(), v.z());
 
 				break;
@@ -724,7 +815,7 @@ void Spriter::RunRenderProgram(Model &model, bool initial) {
 				uint16 entry = READ_LE_UINT16(&program[ip]);
 				ip += 2;
 
-				Math::Vector3d& v = model.tables.rotationTable[entry];
+				Math::Vector3d& v = model.tables.rotations[entry];
 				MatrixRotateX(v.x());
 
 				break;
@@ -733,7 +824,7 @@ void Spriter::RunRenderProgram(Model &model, bool initial) {
 				uint16 entry = READ_LE_UINT16(&program[ip]);
 				ip += 2;
 
-				Math::Vector3d& v = model.tables.rotationTable[entry];
+				Math::Vector3d& v = model.tables.rotations[entry];
 				MatrixRotateY(v.y());
 
 				break;
@@ -742,7 +833,7 @@ void Spriter::RunRenderProgram(Model &model, bool initial) {
 				uint16 entry = READ_LE_UINT16(&program[ip]);
 				ip += 2;
 
-				Math::Vector3d& v = model.tables.rotationTable[entry];
+				Math::Vector3d& v = model.tables.rotations[entry];
 				MatrixRotateZ(v.z());
 
 				break;
@@ -755,7 +846,7 @@ void Spriter::RunRenderProgram(Model &model, bool initial) {
 				uint entry = READ_LE_UINT16(&program[ip]);
 				ip += 2;
 
-				Math::Vector3d& v = model.tables.rotationTable[entry];
+				Math::Vector3d& v = model.tables.rotations[entry];
 				MatrixRotateX(v.x());
 				MatrixRotateY(v.y());
 				MatrixRotateZ(v.z());
@@ -770,7 +861,7 @@ void Spriter::RunRenderProgram(Model &model, bool initial) {
 	} while (!stop);
 }
 
-void Spriter::FindSimilarVertices(Mesh& mesh, Vertices3f& vertices, Common::Array<uint16>& sameVertices) const {
+void Spriter::FindSimilarVertices(Mesh& mesh, Vectors& vertices, Common::Array<uint16>& sameVertices) const {
 	const Math::Matrix4 &m = MatrixCurrent();
 
 	uint i_start = vertices.size();
@@ -805,7 +896,7 @@ void Spriter::MergeVertices(Mesh &mesh, Common::Array<uint16>& sameVertices) {
 	}
 }
 
-void Spriter::TransformMesh(Mesh& mesh, Vertices3f& vertices) {
+void Spriter::TransformMesh(Mesh& mesh, Vectors& vertices) {
 	// transformed vertices from previous meshes might be in the current mesh, hence they need to be transformed manually
 	const Math::Matrix4 &m = MatrixCurrent();
 
@@ -816,7 +907,7 @@ void Spriter::TransformMesh(Mesh& mesh, Vertices3f& vertices) {
 	}
 }
 
-void Spriter::CalculateNormals(Mesh& mesh, Vertices3f& vertices, Vertices3f &normals) {
+void Spriter::CalculateNormals(Mesh& mesh, Vectors& vertices, Vectors &normals) {
 	for (auto& part : mesh.parts) {
 		for (auto& prim : part.primitives) {
 			Math::Vector3d v0 = vertices[prim.indices[0]];
@@ -832,7 +923,7 @@ void Spriter::CalculateNormals(Mesh& mesh, Vertices3f& vertices, Vertices3f &nor
 	}
 }
 
-void Spriter::RenderMesh(Mesh& mesh, Vertices3f& vertices, Vertices3f &normals) {
+void Spriter::RenderMesh(Mesh& mesh, Vectors& vertices, Vectors &normals) {
 	for(auto& part : mesh.parts) {
 		switch(part.type) {
 		case 0:
@@ -854,7 +945,7 @@ void Spriter::RenderMesh(Mesh& mesh, Vertices3f& vertices, Vertices3f &normals) 
 	return;
 }
 
-void Spriter::RenderMeshPartColor(MeshPart& part, Vertices3f& vertices, Vertices3f &normals) {
+void Spriter::RenderMeshPartColor(MeshPart& part, Vectors& vertices, Vectors &normals) {
 	if(!part.cull) {
 		tglEnable(TGL_CULL_FACE);
 	}
@@ -885,7 +976,7 @@ void Spriter::RenderMeshPartColor(MeshPart& part, Vertices3f& vertices, Vertices
 	tglDisable(TGL_CULL_FACE);
 }
 
-void Spriter::RenderMeshPartTexture(MeshPart& part, Vertices3f& vertices, Vertices3f &normals) {
+void Spriter::RenderMeshPartTexture(MeshPart& part, Vectors& vertices, Vectors &normals) {
 	if (!part.cull) {
 		tglEnable(TGL_CULL_FACE);
 	}
@@ -920,13 +1011,67 @@ void Spriter::RenderMeshPartTexture(MeshPart& part, Vertices3f& vertices, Vertic
 void Spriter::LoadModel(const Common::String &modelName, const Common::String &textureName) {
 	LoadH(modelName);
 	LoadGBL(modelName);
-	LoadRBH(modelName, _modelMain.rbh);
+	LoadRBH(modelName, _modelMain.hunks);
 	LoadVMC(modelName);
 
-	InitModel(_modelMain, _meshMain, _animMain);
+	InitModel(_modelMain, _meshMain, _animMain, MODEL_HAS_TRANSLATION_TABLE | MODEL_HAS_ROTATION_TABLE);
+
+	// for (uint i = 0; i < _animMain.size(); ++i) {
+	// 		update max frame
+	// }
+
+	_modelIdle = true;
+	_modelMain.time = 0;
+}
+
+void lerp3(Vectors &dst, const Vectors &src1, const Vectors &src2, uint t) {
+	assert(dst.size() == src1.size() && src1.size() == src2.size());
+	float interpolator = static_cast<float>(t) / 65536.0f;
+	float interpolatorInv = 1.0f - interpolator;
+	for (uint i = 0; i < dst.size(); ++i) {
+		dst[i] = src1[i] * interpolator + src2[i] * interpolatorInv;
+	}
+
 }
 
 void Spriter::RenderModel(Model &model) {
+	if (model.flags & MODEL_HAS_TRANSLATION_TABLE) {
+		if (model.startFrame == -1) {
+			lerp3(model.tables.translations, model.tables.translations, model.endTranslateTables[model.endFrame], model.time);
+		} else {
+			lerp3(model.tables.translations,  model.startTranslateTables[model.startFrame], model.endTranslateTables[model.endFrame], model.time);
+		}
+	}
+
+	if (model.flags & MODEL_HAS_ROTATION_TABLE) {
+		if (model.startFrame == -1) {
+			lerp3(model.tables.rotations, model.tables.rotations, model.endRotateTables[model.endFrame], model.time);
+		} else {
+			lerp3(model.tables.rotations,  model.startRotateTables[model.startFrame], model.endRotateTables[model.endFrame], model.time);
+		}
+	}
+
+	if (model.flags & MODEL_HAS_SCALE_TABLE) {
+		if (model.startFrame == -1) {
+			lerp3(model.tables.scales, model.tables.scales, model.endScaleTables[model.endFrame], model.time);
+		} else {
+			lerp3(model.tables.scales,  model.startScaleTables[model.startFrame], model.endScaleTables[model.endFrame], model.time);
+		}
+	}
+
+	MatrixReset();
+
+	MatrixRotateX(_view.rotation.x());
+	MatrixRotateY(_view.rotation.y());
+	MatrixRotateZ(_view.rotation.z());
+	MatrixTranslate(-_view.position.x(), -_view.position.y(), -_view.position.z());
+
+	MatrixTranslate(model.position.x(), model.position.y(), model.position.z());
+	MatrixScale(model.scale);
+	MatrixRotateX(model.rotation.x());
+	MatrixRotateY(model.rotation.y());
+	MatrixRotateZ(model.rotation.z());
+
 	// code just for debuging model rendering, to be removed
 	tglClearDepth(100.0f);
 	tglClear(TGL_DEPTH_BUFFER_BIT);
@@ -975,5 +1120,50 @@ void Spriter::RenderModel(Model &model) {
 	TinyGL::presentBuffer();
 
 }
+
+bool Spriter::SetStartFrame(Model &model, const AnimationInfo &anim, int frame) {
+	const Hunks &hunks = model.hunks;
+	uint numFrames = 0;
+	if ((model.flags & MODEL_HAS_TRANSLATION_TABLE) != 0) {
+		model.startTranslateTables = LoadAnimationData<false>(hunks, anim.translateTablesHunk, anim.translateTables);
+		numFrames = model.startTranslateTables.size();
+	}
+	if ((model.flags & MODEL_HAS_ROTATION_TABLE) != 0) {
+		model.startRotateTables = LoadAnimationData<true>(hunks, anim.rotateTablesHunk, anim.rotateTables);
+		numFrames = model.startRotateTables.size();
+	}
+	if ((model.flags & MODEL_HAS_SCALE_TABLE) != 0) {
+		model.startScaleTables = LoadAnimationData<false>(hunks, anim.scaleTablesHunk, anim.scaleTables);
+		numFrames = model.startScaleTables.size();
+	}
+	if (frame < 0 || frame >= numFrames) {
+		return false;
+	}
+	model.startFrame = frame;
+	return true;
+}
+
+bool Spriter::SetEndFrame(Model &model, const AnimationInfo &anim, int frame) {
+	const Hunks &hunks = model.hunks;
+	uint numFrames = 0;
+	if ((model.flags & MODEL_HAS_TRANSLATION_TABLE) != 0) {
+		model.endTranslateTables = LoadAnimationData<false>(hunks, anim.translateTablesHunk, anim.translateTables);
+		numFrames = model.endTranslateTables.size();
+	}
+	if ((model.flags & MODEL_HAS_ROTATION_TABLE) != 0) {
+		model.endRotateTables = LoadAnimationData<true>(hunks, anim.rotateTablesHunk, anim.rotateTables);
+		numFrames = model.endRotateTables.size();
+	}
+	if ((model.flags & MODEL_HAS_SCALE_TABLE) != 0) {
+		model.endScaleTables = LoadAnimationData<false>(hunks, anim.scaleTablesHunk, anim.scaleTables);
+		numFrames = model.endScaleTables.size();
+	}
+	if (frame < 0 || frame >= numFrames) {
+		return false;
+	}
+	model.endFrame = frame;
+	return true;
+}
+
 
 } // End of namespace Tinsel

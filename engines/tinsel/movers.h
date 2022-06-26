@@ -27,6 +27,8 @@
 #include "tinsel/scene.h"	// for TFTYPE
 #include "tinsel/tinsel.h"
 
+#include "math/vector3d.h"
+
 namespace Tinsel {
 
 struct OBJECT;
@@ -125,6 +127,9 @@ struct MOVER {
 	SCNHANDLE hTextureName;
 	bool bIsValid;
 
+	int posX, posY, posZ;
+	int animSpeed;
+
 };
 
 struct MAINIT {
@@ -192,6 +197,8 @@ void StopMover(MOVER *pMover);
 /*----------------------------------------------------------------------*/
 
 void Declare3D(int ano, SCNHANDLE hModelName, SCNHANDLE hTextureName);
+Common::Rect Draw3D(OBJECT* obj);
+void T3SetMoverStanding(CORO_PARAM, MOVER *pMover, bool bImmediate);
 
 /*----------------------------------------------------------------------*/
 

@@ -168,19 +168,10 @@ OBJECT **Background::GetPlayfieldList(unsigned int which) {
 	return &pPlayfield->pDispList;
 }
 
-/**
- * Draws all the playfield object lists for the current background.
- * The playfield velocity is added to the playfield position in order
- * to scroll each playfield before it is drawn.
- */
-
-void Background::DrawBackgnd() {
+void Background::Tick() {
 	PLAYFIELD *pPlay;	// playfield pointer
 	int prevX, prevY;	// save interger part of position
 	Common::Point ptWin;	// window top left
-
-	if (_pCurBgnd == NULL)
-		return;		// no current background
 
 	// scroll each background playfield
 	for (unsigned int i = 0; i < _pCurBgnd->fieldArray.size(); i++) {
@@ -213,11 +204,28 @@ void Background::DrawBackgnd() {
 		// clear playfield moved flag
 		pPlay->bMoved = false;
 	}
+}
 
-#define playground_3d 1 // code just for debuging model rendering, to be removed
-#if playground_3d
-	AddClipRect(Common::Rect(640,432));
-#endif
+/**
+ * Draws all the playfield object lists for the current background.
+ * The playfield velocity is added to the playfield position in order
+ * to scroll each playfield before it is drawn.
+ */
+
+void Background::DrawBackgnd() {
+	if (TinselVersion == 3){
+		T3DrawBackgnd();
+		return;
+	}
+
+	PLAYFIELD *pPlay;	// playfield pointer
+	Common::Point ptWin;	// window top left
+
+	if (_pCurBgnd == NULL)
+		return;		// no current background
+
+	// update scrolling of fields and generate clipping rectangles
+	Tick();
 
 	// merge the clipping rectangles
 	MergeClipRect();
@@ -243,17 +251,59 @@ void Background::DrawBackgnd() {
 		}
 	}
 
-	if (TinselVersion != 3) {
-		// transfer any new palettes to the video DAC
-		PalettesToVideoDAC();
+	// transfer any new palettes to the video DAC
+	PalettesToVideoDAC();
+
+	// update the screen within the clipping rectangles
+	for (RectList::const_iterator r = clipRects.begin(); r != clipRects.end(); ++r) {
+		UpdateScreenRect(*r);
 	}
 
-#if playground_3d
-	// reset zbuffer?
+	g_system->updateScreen();
 
-	_vm->_spriter->RenderModel(_vm->_spriter->_modelMain);
+	// delete all the clipping rectangles
+	ResetClipRect();
+}
+
+void Background::T3DrawBackgnd() {
+	Common::Point ptWin;	// window top left
+
+	if (_pCurBgnd == NULL)
+		return;		// no current background
+
+	// update scrolling of fields and generate clipping rectangles
+	Tick();
+
+#if 1 // REMOVE ME
+	AddClipRect(Common::Rect(640,432));
 #endif
-#undef playground_3d
+
+	// merge the clipping rectangles
+	MergeClipRect();
+
+	const RectList &clipRects = GetClipRects();
+	for (unsigned int i = 0; i < _pCurBgnd->fieldArray.size(); i++) {
+		// get pointer to correct playfield
+		PLAYFIELD *pPlay = &_pCurBgnd->fieldArray[i];
+		ptWin.x = fracToInt(pPlay->fieldX);
+		ptWin.y = fracToInt(pPlay->fieldY);
+
+		for (OBJECT* pObj = pPlay->pDispList; pObj != NULL; pObj = pObj->pNext) {
+			if (pObj->flags & DMA_3D) {
+				_vm->_spriter->RenderModel(_vm->_spriter->_modelMain);
+			} else {
+				for (RectList::const_iterator r = clipRects.begin(); r != clipRects.end(); ++r)	{
+					Common::Rect rcPlayClip;	// clip rect for this playfield
+					if (IntersectRectangle(rcPlayClip, pPlay->rcClip, *r)) {
+						// redraw all objects within this clipping rect
+						UpdateClipRectSingle(pObj, &ptWin, &rcPlayClip);
+					}
+				}
+			}
+		}
+	}
+
+	// reset zbuffer?
 
 	// update the screen within the clipping rectangles
 	for (RectList::const_iterator r = clipRects.begin(); r != clipRects.end(); ++r) {

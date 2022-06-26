@@ -908,14 +908,14 @@ void T3MoverProcess(CORO_PARAM, const void *param) {
 
 		pMover->actorObj = MultiInitObject(&mi);
 
-		MultiInsertObject(_vm->_bg->GetPlayfieldList(FIELD_WORLD),pMover->actorObj);
+		MultiInsertObject(_vm->_bg->GetPlayfieldList(FIELD_WORLD), pMover->actorObj);
 		MultiSetAniXY(pMover->actorObj,pMover->objX,pMover->objY);
 
 		warning("TODO: Finish implementation of T3MoverProcess() for Noir");
-		// FlagChanged(pMover->actorObj);
 
-		// ::spriter::SetSeq(0,4);
-
+		//FlagChanged(pMover->actorObj);
+		_vm->_spriter->SetSequence(0, 4);
+	
 		// pMover->tDelta = 0x10000;
 		// pMover->nextIdleAnim = 0;
 	}
@@ -925,6 +925,8 @@ void T3MoverProcess(CORO_PARAM, const void *param) {
 		SetMoverZ(pMover, pMover->objY, GetPolyZfactor(pMover->hCpath));
 	else
 		SetMoverZ(pMover, pMover->objY, GetPolyZfactor(FirstPathPoly()));
+
+	T3SetMoverStanding(coroParam, pMover, true);
 
 	HideMover(pMover);		// Allows a play to come in before this appears
 	pMover->bHidden = false;	// ...but don't stay hidden
@@ -1078,4 +1080,44 @@ void Declare3D(int ano, SCNHANDLE hModelName, SCNHANDLE hTextureName) {
 	assert(hModelNameLoaded == hModelName);
 }
 
+Common::Rect Draw3D(OBJECT* obj) {
+	int i = 0;
+	while (g_Movers[i].actorObj != obj) {
+		++i;
+		if (i >= MAX_MOVERS) {
+			return {};
+		}
+	}
+	MOVER *mover = &g_Movers[i];
+	if (mover->bHidden) {
+		return {};
+	}
+	//idleanim
+	return _vm->_spriter->Step(mover->direction, mover->posX, -mover->posY, -mover->posZ, mover->animSpeed);
+}
+
+void T3SetMoverStanding(CORO_PARAM, MOVER *pMover, bool bImmediate) {
+	CORO_BEGIN_CONTEXT;
+	CORO_END_CONTEXT(_ctx);
+	
+	CORO_BEGIN_CODE(_ctx);
+	
+	if (!MoverIs(pMover)) {
+		CORO_GIVE_WAY;
+	}
+	while (!MoverIs(pMover)) {
+		CORO_SLEEP(1);
+	}
+
+	//T3ResetTargets(pMover);
+
+	if (pMover->type == MOVER_3D) {
+		//FlagChanged(pMover->actorObj);
+		_vm->_spriter->SetSequence(0, bImmediate ? 0 : 8);
+		pMover->animSpeed = 0x10000;
+		//pMover->nextIdleAnim = win_main::DwGetCurrentTime() + ibm_rand::dwRandom(0x18,0xf0,0);;
+	}
+
+	CORO_END_CODE;
+}
 } // End of namespace Tinsel

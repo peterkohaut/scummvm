@@ -38,8 +38,6 @@
 namespace Tinsel {
 
 typedef Common::FixedStack<Math::Matrix4, 30> MatrixStack;
-typedef Common::Array<Math::Vector3d> Vertices3f;
-
 
 enum RenderProgramOp : uint16 {
 	MATRIX_DUPLICATE    = 1,
@@ -73,6 +71,8 @@ struct AnimationInfo {
 	uint scaleTablesHunk;
 	uint scaleTables;
 	uint scaleNum;
+
+	uint maxFrame;
 };
 
 struct MeshInfo {
@@ -83,14 +83,16 @@ struct MeshInfo {
 	uint renderProgram;
 };
 
-struct RBHEntry {
+struct Hunk {
 	Common::Array<uint8> data;
 	Common::Array<uint> mappingIdx;
 	uint size;
 	uint flags;
 };
 
-typedef Common::Array<RBHEntry> RBH;
+typedef Common::Array<Hunk> Hunks;
+
+typedef Common::Array<Math::Vector3d> Vectors;
 
 struct Primitive {
 	uint indices[8];
@@ -120,35 +122,38 @@ struct Meshes {
 	Common::Array<Mesh> meshes;
 };
 
-struct VecFTables {
-	Common::Array<Common::Array<Math::Vector3d>> frame;
-};
-
+typedef  Common::Array<Vectors> AnimationData;
 
 struct ModelTables {
-	Common::Array<Math::Vector3d> translationTable;
-	Common::Array<Math::Vector3d> rotationTable;
-	Common::Array<Math::Vector3d> scaleTable;
-	Meshes                        meshes;
+	Vectors translations;
+	Vectors rotations;
+	Vectors scales;
+	Meshes  meshes;
+};
+
+enum ModelFlags {
+	MODEL_HAS_TRANSLATION_TABLE = 1,
+	MODEL_HAS_SCALE_TABLE = 2,
+	MODEL_HAS_ROTATION_TABLE = 4
 };
 
 struct Model {
-	RBH rbh;
-	RBH rbhU;
+	Hunks hunks;
+	Hunks hunksU;
 	uint animationCount;
 	uint field_0xe;
 	uint field_0xf;
 	uint8* renderProgram;
 
 	// animation tables
-	VecFTables startRotateTables;
-	VecFTables startScaleTables;
-	VecFTables startTranslateTables;
-	VecFTables endRotateTables;
-	VecFTables endScaleTables;
-	VecFTables endTranslateTables;
-	uint startFrame;
-	uint endFrame;
+	AnimationData startTranslateTables;
+	AnimationData startRotateTables;
+	AnimationData startScaleTables;
+	AnimationData endTranslateTables;
+	AnimationData endRotateTables;
+	AnimationData endScaleTables;
+	int startFrame;
+	int endFrame;
 
 	uint flags;
 	uint field_0x32;
@@ -156,7 +161,11 @@ struct Model {
 
 	ModelTables tables;
 
-	uint interpolant;
+	Math::Vector3d position;
+	Math::Vector3d rotation;
+	float scale;
+
+	uint time; // interpolant
 };
 
 struct Viewport {
@@ -176,12 +185,8 @@ struct View {
 
 	Viewport viewport;
 
-	float cameraPosX;
-	float cameraPosY;
-	float cameraPosZ;
-	int cameraRotX;
-	int cameraRotY;
-	int cameraRotZ;
+	Math::Vector3d position;
+	Math::Vector3d rotation;
 };
 
 class Spriter {
@@ -203,6 +208,17 @@ private:
 	bool _textureGenerated;
 	uint _texture[4];
 
+	bool _modelIdle;
+
+	uint _animId;
+	uint _animSpeed;
+	uint _animDelay;
+	uint _animDelayMax;
+
+	uint _sequencesCount;
+
+	uint _direction;
+
 public:
 	Model _modelMain;
 	Model _modelShadow;
@@ -219,6 +235,9 @@ public:
 
 	void UpdatePalette(SCNHANDLE hPalette);
 
+	void SetSequence(uint animId, uint delay);
+	Common::Rect Step(int direction, int x, int y, int z, int speed);
+
 private:
 	const Math::Matrix4& MatrixCurrent() const;
 
@@ -227,6 +246,7 @@ private:
 	void MatrixPop();
 	void MatrixPush();
 	void MatrixTranslate(float x, float y, float z);
+	void MatrixScale(float s);
 	void MatrixRotateX(float angle);
 	void MatrixRotateY(float angle);
 	void MatrixRotateZ(float angle);
@@ -236,27 +256,33 @@ private:
 	// Loading of model
 	void LoadH(const Common::String& modelName);
 	void LoadGBL(const Common::String& modelName);
-	void LoadRBH(const Common::String& modelName, RBH& rbh);
+	void LoadRBH(const Common::String& modelName, Hunks& hunks);
 	void LoadVMC(const Common::String& textureName);
 
 	void UpdateTextures();
 
-	Meshes LoadMeshes(RBH rbh, uint table1, uint index1, uint frame);
-	VecFTables LoadTableVector3f(RBH rbh, uint table, uint offset);
-	VecFTables LoadTableVector3i(RBH rbh, uint table, uint offset);
-	void InitModel(Model& model, MeshInfo& meshInfo, Common::Array<AnimationInfo>& animInfo);
+	Meshes LoadMeshes(const Hunks &hunks, uint hunk, uint offset, int frame);
+	template<bool convert>
+	AnimationData LoadAnimationData(const Hunks &hunks, uint hunk, uint offset);
+	void InitModel(Model& model, MeshInfo& meshInfo, Common::Array<AnimationInfo>& animInfo, uint flags);
 
 	// Rendering
 	void RunRenderProgram(Model &model, bool initial);
 
-	void FindSimilarVertices(Mesh& mesh, Vertices3f& vertices, Common::Array<uint16>& sameVertices) const;
+	void FindSimilarVertices(Mesh& mesh, Vectors& vertices, Common::Array<uint16>& sameVertices) const;
 	void MergeVertices(Mesh& mesh, Common::Array<uint16>& sameVertices);
 
-	void TransformMesh(Mesh& mesh, Vertices3f& vertices);
-	void CalculateNormals(Mesh& mesh, Vertices3f& vertices, Vertices3f &normals);
-	void RenderMesh(Mesh& mesh, Vertices3f& vertices, Vertices3f &normals);
-	void RenderMeshPartColor(MeshPart& part, Vertices3f& vertices, Vertices3f &normals);
-	void RenderMeshPartTexture(MeshPart& part, Vertices3f& vertices, Vertices3f &normals);
+	void TransformMesh(Mesh& mesh, Vectors& vertices);
+	void CalculateNormals(Mesh& mesh, Vectors& vertices, Vectors &normals);
+	void RenderMesh(Mesh& mesh, Vectors& vertices, Vectors &normals);
+	void RenderMeshPartColor(MeshPart& part, Vectors& vertices, Vectors &normals);
+	void RenderMeshPartTexture(MeshPart& part, Vectors& vertices, Vectors &normals);
+
+	// Animation
+
+	bool SetStartFrame(Model &model, const AnimationInfo &anim, int frame);
+	bool SetEndFrame(Model &model, const AnimationInfo &anim, int frame);
+
 };
 
 } // End of namespace Tinsel

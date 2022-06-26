@@ -158,6 +158,10 @@ static const byte fragment14[] = {OP_LIBCALL | OPSIZE8, 58,
 };
 static const byte fragment15[] = { OP_JMPFALSE | OPSIZE16, FRAGMENT_WORD(154) };
 
+
+static const byte fragment_noir_skip1[] = { OP_IMM + 1, FRAGMENT_DWORD(0x1e000000), (OP_IMM + 1)| OPSIZE16, FRAGMENT_WORD(0x95), (OP_ZERO +1 ), (OP_LIBCALL + 1) | OPSIZE8, 99, OP_HALT +1 };
+static const byte fragment_noir_skip2[] = { (OP_JUMP + 1) | OPSIZE16, FRAGMENT_WORD(0x50f) };
+
 #undef FRAGMENT_WORD
 
 const WorkaroundEntry workaroundList[] = {
@@ -229,6 +233,9 @@ const WorkaroundEntry workaroundList[] = {
 
 	// DW1-GRA: Fixes hang in Temple, when trying to use items on the big hammer
 	{TINSEL_V1, false, false, Common::kPlatformUnknown, 276915849, 0x98, sizeof(fragment15), fragment15},
+
+	{TINSEL_V3, false, false, Common::kPlatformUnknown, 0, 0x6a2, sizeof(fragment_noir_skip1), fragment_noir_skip1},
+	{TINSEL_V3, false, false, Common::kPlatformUnknown, 0x1f3dc654, 0x23c, sizeof(fragment_noir_skip2), fragment_noir_skip2},
 
 	{TINSEL_V0, false, false, Common::kPlatformUnknown, 0, 0, 0, NULL}
 };
