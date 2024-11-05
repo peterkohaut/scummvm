@@ -125,7 +125,6 @@ struct MOVER {
 	MOVER_TYPE type;
 	SCNHANDLE hModelName;
 	SCNHANDLE hTextureName;
-	bool bIsValid;
 
 	int posX, posY, posZ;
 	int animSpeed;

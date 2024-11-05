@@ -228,7 +228,7 @@ void HideMover(MOVER *pMover, int sf) {
 		// sf is only passed in Tinsel v1
 		pMover->SlowFactor = sf;
 	} else {
-		// Tinsel 2 specific code
+		// Tinsel 2 and Noir specific code
 		if (_vm->_actor->IsTaggedActor(pMover->actorID)) {
 			// It may be pointed to
 			_vm->_actor->SetActorPointedTo(pMover->actorID, false);
@@ -236,7 +236,7 @@ void HideMover(MOVER *pMover, int sf) {
 		}
 	}
 
-	if (pMover->actorObj)
+	if (pMover->actorObj && pMover->type == MOVER_2D)
 		MultiSetZPosition(pMover->actorObj, -1);
 }
 
@@ -255,7 +255,7 @@ bool MoverHidden(MOVER *pMover) {
  */
 bool MoverIs(MOVER *pMover) {
 	if (TinselVersion == 3 && pMover->type == MOVER_3D) {
-		return pMover->bIsValid;
+		return pMover->bActive;
 	} else if (TinselVersion >= 2) {
 		return pMover->actorObj ? true : false;
 	} else {
@@ -896,7 +896,7 @@ void T3MoverProcess(CORO_PARAM, const void *param) {
 	if (pMover->type == MOVER_3D) {
 		assert(pMover->hModelName != 0);
 
-		pMover->bIsValid = 1;
+		pMover->bActive = true;
 
 		mi.hMulFrame = 0;
 		mi.mulID = 0;
@@ -913,10 +913,10 @@ void T3MoverProcess(CORO_PARAM, const void *param) {
 
 		warning("TODO: Finish implementation of T3MoverProcess() for Noir");
 
-		//FlagChanged(pMover->actorObj);
+		AnimateObjectFlags(pMover->actorObj, pMover->actorObj->flags | DMA_CHANGED, pMover->actorObj->hImg);
 		_vm->_spriter->SetSequence(0, 4);
 	
-		// pMover->tDelta = 0x10000;
+		pMover->animSpeed = 0x10000;
 		// pMover->nextIdleAnim = 0;
 	}
 
@@ -926,10 +926,10 @@ void T3MoverProcess(CORO_PARAM, const void *param) {
 	else
 		SetMoverZ(pMover, pMover->objY, GetPolyZfactor(FirstPathPoly()));
 
-	T3SetMoverStanding(coroParam, pMover, true);
+	CORO_INVOKE_2(T3SetMoverStanding, pMover, true);
 
-	HideMover(pMover);		// Allows a play to come in before this appears
-	pMover->bHidden = false;	// ...but don't stay hidden
+	HideMover(pMover);       // Allows a play to come in before this appears
+	pMover->bHidden = false; // ...but don't stay hidden
 
 	for (;;) {
 		DoMoveActor(pMover);
@@ -1109,13 +1109,15 @@ void T3SetMoverStanding(CORO_PARAM, MOVER *pMover, bool bImmediate) {
 		CORO_SLEEP(1);
 	}
 
-	//T3ResetTargets(pMover);
+	pMover->targetX = pMover->targetY = -1;
+	pMover->ItargetX = pMover->ItargetY = -1;
+	pMover->UtargetX = pMover->UtargetY = -1;
 
 	if (pMover->type == MOVER_3D) {
-		//FlagChanged(pMover->actorObj);
+		AnimateObjectFlags(pMover->actorObj, pMover->actorObj->flags | DMA_CHANGED, pMover->actorObj->hImg);
 		_vm->_spriter->SetSequence(0, bImmediate ? 0 : 8);
 		pMover->animSpeed = 0x10000;
-		//pMover->nextIdleAnim = win_main::DwGetCurrentTime() + ibm_rand::dwRandom(0x18,0xf0,0);;
+		// pMover->nextIdleAnim = win_main::DwGetCurrentTime() + ibm_rand::dwRandom(24,240,0);
 	}
 
 	CORO_END_CODE;
