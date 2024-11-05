@@ -24,6 +24,7 @@
 
 #include "tinsel/noir/spriter.h"
 
+#include "math/utils.h"
 #include "tinsel/handle.h"
 #include "tinsel/tinsel.h"
 
@@ -39,6 +40,10 @@
 #include "graphics/tinygl/gl.h"
 
 namespace Tinsel {
+
+static float ConvertAngle(uint32 angle) {
+	return ((float(angle & 0xfff) / 4095.0f) * 360.0f);
+}
 
 Spriter::Spriter() {
 	_textureGenerated = false;
@@ -114,7 +119,7 @@ void Spriter::Init(int width, int height) {
 	_meshShadow.resize(50);
 
 	_view.screenRect.left   = 0;
-	_view.screenRect.top	= 0;
+	_view.screenRect.top    = 0;
 	_view.screenRect.right  = width;
 	_view.screenRect.bottom = height;
 
@@ -122,7 +127,7 @@ void Spriter::Init(int width, int height) {
 	_view.centerY = height / 2;
 
 	_view.viewRect.left   = -_view.centerX;
-	_view.viewRect.top	= -_view.centerY;
+	_view.viewRect.top    = -_view.centerY;
 	_view.viewRect.right  =  _view.screenRect.right  - _view.screenRect.left - _view.centerX - 1;
 	_view.viewRect.bottom =  _view.screenRect.bottom - _view.screenRect.top  - _view.centerY;
 
@@ -130,11 +135,13 @@ void Spriter::Init(int width, int height) {
 }
 
 
-void Spriter::SetCamera(short rotX, short rotY, short rotZ, int posX, int posY, int posZ, int cameraAp) {
+void Spriter::SetCamera(int rotX, int rotY, int rotZ, int posX, int posY, int posZ, int cameraAp) {
 	_view.position.set(posX * 0.01f, posY * 0.01f, posZ * 0.01f);
-	_view.rotation.set(rotX, rotY, rotZ);
+	_view.rotation.set(ConvertAngle(rotX), ConvertAngle(rotY), ConvertAngle(rotZ));
 
 	SetViewport(cameraAp);
+
+	_modelIdle = true;
 }
 
 void Spriter::TransformSceneXYZ(int x, int y, int z, int& xOut, int& yOut) {
@@ -143,7 +150,7 @@ void Spriter::TransformSceneXYZ(int x, int y, int z, int& xOut, int& yOut) {
 	MatrixRotateY(_view.rotation.y());
 	MatrixRotateZ(_view.rotation.z());
 	MatrixTranslate(-_view.position.x(), -_view.position.y(), -_view.position.z());
-	MatrixTranslate(x / 100.0f, y / 100.0f, z / 100.0f);
+	MatrixTranslate((float)x / 100.0f, (float)y / 100.0f, (float)z / 100.0f);
 
 	Math::Vector3d v(0,0,0);
 
@@ -259,9 +266,9 @@ void Spriter::LoadGBL(const Common::String& modelName) {
 		} else if (sub.equals("MESH_TABLES_hunk")) {
 			mesh->meshTablesHunk = val;
 		} else if (sub.equals("RENDER_PROGRAM")) {
-			mesh->renderProgram = val;
+			mesh->program = val;
 		} else if (sub.equals("RENDER_PROGRAM_hunk")) {
-			mesh->renderProgramHunk = val;
+			mesh->programHunk = val;
 		} else if (sub.equals("TRANSLATE_TABLES")) {
 			anim->translateTables = val;
 		} else if (sub.equals("TRANSLATE_TABLES_hunk")) {
@@ -360,7 +367,7 @@ void Spriter::LoadVMC(const Common::String& textureName) {
 
 		int size = size2 * size1 * 2;
 
-		uint texId = ((a >> 8) & 0xfffU) * 16 + ((b >> 7) & 0xffffU) & 0xffff;
+		uint texId = (((a >> 8) & 0xfffU) * 16 + ((b >> 7) & 0xffffU)) & 0xffff;
 		if (texId > 3) {
 			return;
 		}
@@ -373,7 +380,7 @@ void Spriter::LoadVMC(const Common::String& textureName) {
 			bAdj = -(-b & 0x7fU);
 		}
 
-		uint pos = (((aAdj & 0x1ff) * 128 + (bAdj & 0xffff) & 0xffff) * 2) + (texId * 65536);
+		uint pos = ((((aAdj & 0x1ff) * 128 + (bAdj & 0xffff)) & 0xffff) * 2) + (texId * 65536);
 
 		f.read(_textureData.data() + pos, size);
 	}
@@ -453,7 +460,7 @@ void Spriter::UpdatePalette(SCNHANDLE hPalette) {
 
 void Spriter::SetSequence(uint animId, uint delay) {
 	assert(animId < _animMain.size());
-	
+
 	_sequencesCount = _sequencesCount + 1;
 	_animId = animId;
 
@@ -476,18 +483,18 @@ void Spriter::SetSequence(uint animId, uint delay) {
 	}
 }
 
-Common::Rect Spriter::Step(int direction, int x, int y, int z, int speed) {
-	if (!_modelIdle) {
+Common::Rect Spriter::Step(int direction, int x, int y, int z, int tDelta) {
+	if (_modelIdle) {
 		_modelIdle = false;
 		_direction = direction;
 	}
 
-	_modelMain.position.set(x * 0.01f, y * 0.01f, z * 0.01f);
+	_modelMain.position.set((float)x * 0.01f, (float)y * 0.01f, (float)z * 0.01f);
 
-	// do gradual direction change - game is using 5 steps 
-	_modelMain.rotation.set(0, direction , 0);
-	
-	
+	// _modelMain.scale = 1.0f;
+	// do gradual direction change - game is using 5 steps
+	// _modelMain.rotation.set(0, (float)direction , 0);
+
 
 	if ((_animMain[_animId].maxFrame < 2) && (_modelMain.startFrame != -1)) {
 		_modelMain.time = 0;
@@ -496,32 +503,33 @@ Common::Rect Spriter::Step(int direction, int x, int y, int z, int speed) {
 		}
 	} else {
 		if (_animDelay == 0) {
-			_modelMain.time += speed;
+			_modelMain.time += tDelta;
 		} else {
 			_animDelay--;
-			_modelMain.time += (uint)speed / _animDelayMax;
+			_modelMain.time += (uint)tDelta / _animDelayMax;
 		}
 
-		while (0xFFFF < _modelMain.time) {
-			_modelMain.time -= 0x10000;
+		while (_modelMain.time > 65535) {
+			_modelMain.time -= 65536;
 			if (!SetStartFrame(_modelMain, _animMain[_animId], _modelMain.endFrame)) {
 				error("Spr_Step: Could not set start frame");
 			}
-			
+
 			_modelMain.endFrame++;
-			if (_animMain[_animId].maxFrame < _modelMain.endFrame) {
+			if ((int)_animMain[_animId].maxFrame < _modelMain.endFrame) {
 				_sequencesCount++;
 				_modelMain.endFrame = 0;
 			}
 		}
 	}
+
 	RenderModel(_modelMain);
 
 	// int shadowId = 3;
 	// if (_animId == 2) {
 	// 	shadowId = ((_modelMain.endFrame + 17) % 18) + 1;
 	// }
-	// _modelShadow.renderProgram = _modelShadow.hunks[_meshShadow[shadowId].renderProgramHunk].data.data() + _meshShadow[shadowId].renderProgram;
+	// _modelShadow.program = _modelShadow.hunks[_meshShadow[shadowId].programHunk].data.data() + _meshShadow[shadowId].program;
 	// _modelShadow.tables.meshes = LoadMeshes(_modelShadow.hunks, _meshShadow[shadowId].meshTablesHunk, _meshShadow[shadowId].meshTables, 1);
 	// dx = (float)_modelMain.animTranslate.x() - _modelMain.lightPosition[0].x;
 	// dz = (float)_modelMain.animTranslate.z() - _modelMain.lightPosition[0].z;
@@ -542,6 +550,7 @@ Common::Rect Spriter::Step(int direction, int x, int y, int z, int speed) {
 
 	// RenderModel(_modelShadow);
 
+	return Common::Rect {0, 0};
 }
 
 Meshes Spriter::LoadMeshes(const Hunks &hunks, uint hunk, uint offset, int frame) {
@@ -553,7 +562,7 @@ Meshes Spriter::LoadMeshes(const Hunks &hunks, uint hunk, uint offset, int frame
 	uint numFrames = framesStream.readUint16LE();
 	uint numEntries = framesStream.readUint16LE();
 
-	assert(frame < numFrames);
+	assert(frame < (int)numFrames);
 
 	framesStream.skip(frame * 4);
 
@@ -619,27 +628,35 @@ Meshes Spriter::LoadMeshes(const Hunks &hunks, uint hunk, uint offset, int frame
 
 			MeshPart part;
 			part.numVertices = (primitiveType & 1) ? 4 : 3;
-			part.type = primitiveType & 0x7f;
+			part.type = static_cast<MeshPartType>((primitiveType & 0x7f) >> 1);
 			part.cull = primitiveType & 0x80;
 			part.primitives.resize(primitiveCount);
 
+			int64 start = primitivesStream.pos();
 			for (auto& prim : part.primitives) {
 				for (uint i = 0; i < 8; ++i) {
 					prim.indices[i] = primitivesStream.readUint16LE();
 				}
 
-				if (part.type == 0 || part.type == 1) {
-					prim.color = primitivesStream.readUint32LE();
-				} else if (part.type == 2 || part.type == 3) {
-					assert(false); //not supported?
-				} else if (part.type == 4 || part.type == 5) {
-					for (uint i = 0; i < part.numVertices; ++i) {
-						prim.uv[i].readFromStream(&primitivesStream);
-					}
-					prim.texture = primitivesStream.readUint16LE();
-					primitivesStream.skip(2); //padding
+				switch (part.type) {
+					case MESH_PART_TYPE_COLOR:
+						prim.color = primitivesStream.readUint32LE();
+						break;
+					case MESH_PART_TYPE_SOLID:
+						assert(false); //not supported?
+						break;
+					case MESH_PART_TYPE_TEXTURE:
+						// Has texture
+						for (uint i = 0; i < part.numVertices; ++i) {
+							prim.uv[i].readFromStream(&primitivesStream);
+						}
+						prim.texture = primitivesStream.readUint16LE();
+						primitivesStream.skip(2); //padding
+						break;
 				}
 			}
+			int64 end = primitivesStream.pos();
+			assert(dataSize == end - start);
 
 			mesh.parts.push_back(part);
 		}
@@ -664,7 +681,7 @@ AnimationData Spriter::LoadAnimationData(const Hunks& hunks, uint hunk, uint off
 	uint vectorsHunk = hunks[hunk].mappingIdx[0];
 	assert(vectorsHunk < hunks.size());
 
-	for (int frame = 0; frame < numFrames; frame++) {
+	for (uint frame = 0; frame < numFrames; frame++) {
 		auto& vectors = result[frame];
 		uint vectorsOffset = framesStream.readUint32LE();
 
@@ -678,9 +695,7 @@ AnimationData Spriter::LoadAnimationData(const Hunks& hunks, uint hunk, uint off
 				uint32 x = vectorsStream.readUint32LE();
 				uint32 y = vectorsStream.readUint32LE();
 				uint32 z = vectorsStream.readUint32LE();
-#define convertFn(v) (((v & 0xfff) / 4095.0f) * 360.0f)
-				v.set(convertFn(x), convertFn(y), convertFn(z));
-#undef convertFn
+				v.set(ConvertAngle(x), ConvertAngle(y), ConvertAngle(z));
 			} else {
 				v.readFromStream(&vectorsStream);
 			}
@@ -693,7 +708,7 @@ AnimationData Spriter::LoadAnimationData(const Hunks& hunks, uint hunk, uint off
 void Spriter::InitModel(Model &model, MeshInfo &meshInfo, Common::Array<AnimationInfo> &animInfos, uint flags) {
 	model.flags = flags;
 
-	model.renderProgram       = model.hunks[meshInfo.renderProgramHunk].data.data() + meshInfo.renderProgram;
+	model.program             = model.hunks[meshInfo.programHunk].data.data() + meshInfo.program;
 
 	AnimationInfo &animInfo   = animInfos[0];
 
@@ -702,31 +717,38 @@ void Spriter::InitModel(Model &model, MeshInfo &meshInfo, Common::Array<Animatio
 	model.tables.rotations    = LoadAnimationData<true>(model.hunks, animInfo.rotateTablesHunk, animInfo.rotateTables)[0];
 	model.tables.scales       = LoadAnimationData<false>(model.hunks, animInfo.scaleTablesHunk, animInfo.scaleTables)[0];
 
+	model.position.set(0.0f, 0.0f, 0.0f);
+	model.rotation.set(0.0f, 0.0f, 0.0f);
+	model.scale = 1.0f;
+
 	_currentMatrix = &_modelMatrix;
 
 	MatrixReset();
-	// merge vertices
+
+	// Preprocess vertices - merge vertices
 	RunRenderProgram(model, true);
 
-	// bool valid = true;
-	// if (model.flags & MODEL_HAS_TRANSLATION_TABLE) {
-	// 	for (const auto &anim : animInfos) {
-	// 		if (anim.translateNum != animInfo.translateNum) {
-	// 			valid = false;
-	// 		}
-	// 	}
-	// 	model.tables.translations.clear();
-	// 	model.tables.translations.resize(animInfo.translateNum);
-	// }
+	bool valid = true;
+	if (model.flags & MODEL_HAS_TRANSLATION_TABLE) {
+		for (const auto &anim : animInfos) {
+			if (anim.translateNum != animInfo.translateNum) {
+				valid = false;
+			}
+		}
+		model.tables.translations.clear();
+		model.tables.translations.resize(animInfo.translateNum);
+	}
 
-	// for (uint i = 0; i < model.animationCount; ++i) {
-	// 	SetStartFrame(model, animInfos[i], 0);
-	// 	// check if animation data has same number of frames for all transformation types
-	// }
+	assert(valid); // Animation tables are incorrect
+
+	for (uint i = 0; i < model.animationCount; ++i) {
+		// SetStartFrame(model, animInfos[i], 0);
+		// check if animation data has same number of frames for all transformation types
+	}
 }
 
-void Spriter::RunRenderProgram(Model &model, bool initial) {
-	uint8* program = model.renderProgram;
+void Spriter::RunRenderProgram(Model &model, bool preprocess) {
+	uint8* program = model.program;
 	uint ip = 0;
 
 	Vectors vertices;
@@ -753,9 +775,9 @@ void Spriter::RunRenderProgram(Model &model, bool initial) {
 				break;
 			}
 			case U3: {
-				uint16 entry = READ_LE_UINT16(&program[ip]);
-				ip += 2;
 				// TODO
+				// uint16 entry = READ_LE_UINT16(&program[ip]);
+				ip += 2;
 				break;
 			}
 			case TRANSFORM: {
@@ -764,7 +786,7 @@ void Spriter::RunRenderProgram(Model &model, bool initial) {
 				Mesh& mesh = model.tables.meshes.meshes[entry];
 				ip += 2;
 
-				if (initial) {
+				if (preprocess) {
 					FindSimilarVertices(mesh, vertices, sameVertices);
 					MergeVertices(mesh, sameVertices);
 				} else {
@@ -875,13 +897,12 @@ void Spriter::FindSimilarVertices(Mesh& mesh, Vectors& vertices, Common::Array<u
 		for (uint j = 0; j < vertices.size() - 1; ++j) {
 			float d = vOut.getDistanceTo(vertices[j]);
 			// if (d < 0.01f) {
-			if (d < .1f) { // this is too big maybe?
+			if (d < 0.1f) { // find proper ratio, this is perhaps too big?
 				sameVertices[i_start + i] = j + 1; // 0 is reserved for not found
 				break;
 			}
 		}
 	}
-	return;
 }
 
 void Spriter::MergeVertices(Mesh &mesh, Common::Array<uint16>& sameVertices) {
@@ -926,18 +947,14 @@ void Spriter::CalculateNormals(Mesh& mesh, Vectors& vertices, Vectors &normals) 
 void Spriter::RenderMesh(Mesh& mesh, Vectors& vertices, Vectors &normals) {
 	for(auto& part : mesh.parts) {
 		switch(part.type) {
-		case 0:
-		case 1:
+		case MESH_PART_TYPE_COLOR:
 			RenderMeshPartColor(part, vertices, normals);
 			break;
-		case 2:
-			// RenderMeshPartTodo1(part, vertices, normals);
+		case MESH_PART_TYPE_SOLID:
+			// This is just use white color
+			//RenderMeshPartColor(part, vertices, normals);
 			break;
-		case 3:
-			// RenderMeshPartTodo2(part, vertices, normals);
-			break;
-		case 4:
-		case 5:
+		case MESH_PART_TYPE_TEXTURE:
 			RenderMeshPartTexture(part, vertices, normals);
 			break;
 		}
@@ -1060,65 +1077,56 @@ void Spriter::RenderModel(Model &model) {
 	}
 
 	MatrixReset();
-
-	MatrixRotateX(_view.rotation.x());
-	MatrixRotateY(_view.rotation.y());
-	MatrixRotateZ(_view.rotation.z());
-	MatrixTranslate(-_view.position.x(), -_view.position.y(), -_view.position.z());
-
 	MatrixTranslate(model.position.x(), model.position.y(), model.position.z());
 	MatrixScale(model.scale);
 	MatrixRotateX(model.rotation.x());
 	MatrixRotateY(model.rotation.y());
 	MatrixRotateZ(model.rotation.z());
 
-	// code just for debuging model rendering, to be removed
-	tglClearDepth(100.0f);
-	tglClear(TGL_DEPTH_BUFFER_BIT);
-	tglViewport(0, 0, _vm->screen().w ,_vm->screen().h);
+	// MatrixRotateX(_view.rotation.x());
+	// MatrixRotateY(_view.rotation.y());
+	// MatrixRotateZ(_view.rotation.z());
+	// MatrixTranslate(-_view.position.x(), -_view.position.y(), -_view.position.z());
+
+	tglViewport(0, 0, _vm->screen().w, _vm->screen().h);
 
 	tglMatrixMode(TGL_PROJECTION);
 	tglLoadIdentity();
-
-	float near = 1.0f;
-	float far = 100.0f;
-	float ratio = 3.0f / 4.0f;
-	float fov = M_PI / 2.0f;
-	// float right = nclip * tan(fov / 2.0f * (M_PI / 180.0f));
-	float right = 1.0f;
-	tglFrustum(-right, right, -right * ratio, right * ratio, near, far);
+	tglFrustum(-1.0f, 1.0f,  -3.0f / 4.0f, 3.0f / 4.0f, 1.0f, 1000.0f);
+	// opengl uses bottom left
+	tglScalef(1.0f, -1.0f, 1.0f);
+	// Z is inverted, and we need to invert the face orientation too
+	tglScalef(1.0f, 1.0f, -1.0f);
+	tglFrontFace(TGL_CW);
 
 	tglMatrixMode(TGL_MODELVIEW);
 	tglLoadIdentity();
 
-	tglShadeModel(TGL_SMOOTH);
-
-	tglEnable(TGL_LIGHTING);
-
-	TGLfloat light_position[] = { 10.0, 10.0, 10.0, 1.0 };
-	tglLightfv(TGL_LIGHT0, TGL_POSITION, light_position);
-	tglLightf(TGL_LIGHT0, TGL_CONSTANT_ATTENUATION, 10.0f);
-	tglEnable(TGL_LIGHT0);
+	tglRotatef(_view.rotation.x(), 1.0f, 0.0f, 0.0f);
+	tglRotatef(_view.rotation.y(), 0.0f, 1.0f, 0.0f);
+	tglRotatef(_view.rotation.z(), 0.0f, 0.0f, 1.0f);
+	tglTranslatef(-_view.position.x(), -_view.position.y(), -_view.position.z());
 
 	tglEnable(TGL_DEPTH_TEST);
 	tglDepthFunc(TGL_LESS);
 	tglDepthMask(TGL_TRUE);
+	tglClearDepth(1.0f);
+	tglShadeModel(TGL_SMOOTH);
 
-	tglTranslatef(0, -3.0f, -5.f);
+	tglClear(TGL_DEPTH_BUFFER_BIT);
 
-	tglRotatef(30.0f, 1.0f, 0.0f, 0.0f);
-
-	static float angle2  = 0;
-	tglRotatef(angle2, 0.0f, 1.0f, 0.0f);
-	angle2 += 2.f;
-
-	float f = 1.0f / 10.0f;
-	tglScalef(f, -f, f);
+#if 0
+	// code just for debuging model rendering, to be removed
+	tglEnable(TGL_LIGHTING);
+	TGLfloat light_position[] = { 0.0, 0.0, 0.0, 1.0 };
+	tglLightfv(TGL_LIGHT0, TGL_POSITION, light_position);
+	tglLightf(TGL_LIGHT0, TGL_CONSTANT_ATTENUATION, 1000.0f);
+	tglEnable(TGL_LIGHT0);
+#endif
 
 	RunRenderProgram(model, false);
 
 	TinyGL::presentBuffer();
-
 }
 
 bool Spriter::SetStartFrame(Model &model, const AnimationInfo &anim, int frame) {
@@ -1136,7 +1144,7 @@ bool Spriter::SetStartFrame(Model &model, const AnimationInfo &anim, int frame) 
 		model.startScaleTables = LoadAnimationData<false>(hunks, anim.scaleTablesHunk, anim.scaleTables);
 		numFrames = model.startScaleTables.size();
 	}
-	if (frame < 0 || frame >= numFrames) {
+	if (frame < 0 || frame >= (int)numFrames) {
 		return false;
 	}
 	model.startFrame = frame;
@@ -1158,7 +1166,7 @@ bool Spriter::SetEndFrame(Model &model, const AnimationInfo &anim, int frame) {
 		model.endScaleTables = LoadAnimationData<false>(hunks, anim.scaleTablesHunk, anim.scaleTables);
 		numFrames = model.endScaleTables.size();
 	}
-	if (frame < 0 || frame >= numFrames) {
+	if (frame < 0 || frame >= (int)numFrames) {
 		return false;
 	}
 	model.endFrame = frame;

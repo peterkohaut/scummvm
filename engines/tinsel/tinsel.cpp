@@ -1030,6 +1030,8 @@ Common::Error TinselEngine::run() {
 		TinyGL::createContext(width, height, noirFormat, 256, false, false);
 		TinyGL::getSurfaceRef(_screenSurface);
 
+		tglViewport(0, 0, width, height);
+
 		_spriter = new Spriter();
 		_spriter->Init(width, height);
 	} else if (getGameID() == GID_DW2) {

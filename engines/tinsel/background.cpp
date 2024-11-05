@@ -274,9 +274,8 @@ void Background::T3DrawBackgnd() {
 	// update scrolling of fields and generate clipping rectangles
 	Tick();
 
-#if 1 // REMOVE ME
-	AddClipRect(Common::Rect(640,432));
-#endif
+	if (TinselVersion == 3) // TODO: just for debugging 3d rendering
+		AddClipRect(Common::Rect(640,480));
 
 	// merge the clipping rectangles
 	MergeClipRect();
@@ -290,6 +289,8 @@ void Background::T3DrawBackgnd() {
 
 		for (OBJECT* pObj = pPlay->pDispList; pObj != NULL; pObj = pObj->pNext) {
 			if (pObj->flags & DMA_3D) {
+				// The model is rendered via mover::step()->Spriter::Step()->Spriter::RenderModel()
+				// TODO: This is just a hack
 				_vm->_spriter->RenderModel(_vm->_spriter->_modelMain);
 			} else {
 				for (RectList::const_iterator r = clipRects.begin(); r != clipRects.end(); ++r)	{

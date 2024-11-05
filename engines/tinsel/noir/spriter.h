@@ -25,15 +25,13 @@
 #define	TINSEL_SPRITER_H
 
 #include "tinsel/dw.h"
-#include "tinsel/events.h"
-
+#include "common/rect.h"
 #include "common/stack.h"
 #include "common/str.h"
 
 #include "math/vector3d.h"
 #include "math/vector2d.h"
 #include "math/matrix4.h"
-
 
 namespace Tinsel {
 
@@ -79,8 +77,8 @@ struct MeshInfo {
 	uint meshTablesHunk;
 	uint meshTables;
 
-	uint renderProgramHunk;
-	uint renderProgram;
+	uint programHunk;
+	uint program;
 };
 
 struct Hunk {
@@ -101,8 +99,14 @@ struct Primitive {
 	uint texture;
 };
 
+enum MeshPartType {
+	MESH_PART_TYPE_COLOR,
+	MESH_PART_TYPE_SOLID,
+	MESH_PART_TYPE_TEXTURE,
+};
+
 struct MeshPart {
-	uint type;
+	MeshPartType type;
 	uint cull;
 	uint numVertices;
 	Common::Array<Primitive> primitives;
@@ -143,7 +147,7 @@ struct Model {
 	uint animationCount;
 	uint field_0xe;
 	uint field_0xf;
-	uint8* renderProgram;
+	uint8* program;
 
 	// animation tables
 	AnimationData startTranslateTables;
@@ -228,7 +232,7 @@ public:
 	virtual ~Spriter();
 
 	void Init(int width, int height);
-	void SetCamera(short rotX,short rotY,short rotZ,int posX,int posY,int posZ,int cameraAp);
+	void SetCamera(int rotX, int rotY, int rotZ, int posX, int posY, int posZ, int cameraAp);
 	void TransformSceneXYZ(int x, int y, int z, int& xOut, int& yOut);
 	void LoadModel(const Common::String& modelName, const Common::String& textureName);
 	void RenderModel(Model& model);
@@ -236,7 +240,7 @@ public:
 	void UpdatePalette(SCNHANDLE hPalette);
 
 	void SetSequence(uint animId, uint delay);
-	Common::Rect Step(int direction, int x, int y, int z, int speed);
+	Common::Rect Step(int direction, int x, int y, int z, int tDelta);
 
 private:
 	const Math::Matrix4& MatrixCurrent() const;
@@ -253,7 +257,7 @@ private:
 
 	void SetViewport(int ap);
 
-	// Loading of model
+	// Loading of the model
 	void LoadH(const Common::String& modelName);
 	void LoadGBL(const Common::String& modelName);
 	void LoadRBH(const Common::String& modelName, Hunks& hunks);
@@ -266,23 +270,23 @@ private:
 	AnimationData LoadAnimationData(const Hunks &hunks, uint hunk, uint offset);
 	void InitModel(Model& model, MeshInfo& meshInfo, Common::Array<AnimationInfo>& animInfo, uint flags);
 
-	// Rendering
-	void RunRenderProgram(Model &model, bool initial);
+	// Processing of the model
+	void RunRenderProgram(Model &model, bool preprocess);
 
 	void FindSimilarVertices(Mesh& mesh, Vectors& vertices, Common::Array<uint16>& sameVertices) const;
 	void MergeVertices(Mesh& mesh, Common::Array<uint16>& sameVertices);
 
 	void TransformMesh(Mesh& mesh, Vectors& vertices);
 	void CalculateNormals(Mesh& mesh, Vectors& vertices, Vectors &normals);
+
+	// Rendering
 	void RenderMesh(Mesh& mesh, Vectors& vertices, Vectors &normals);
 	void RenderMeshPartColor(MeshPart& part, Vectors& vertices, Vectors &normals);
 	void RenderMeshPartTexture(MeshPart& part, Vectors& vertices, Vectors &normals);
 
 	// Animation
-
 	bool SetStartFrame(Model &model, const AnimationInfo &anim, int frame);
 	bool SetEndFrame(Model &model, const AnimationInfo &anim, int frame);
-
 };
 
 } // End of namespace Tinsel
